@@ -18,14 +18,6 @@ AST syntax check · structural similarity vs reference · generation latency · 
 
 > If you already have notebook-generated results in JSON format, use the dashboard's `Load results` file picker to load that file directly.
 >
-> If you only have a notebook file (`.ipynb`) or exported script (`.py`), use the helper script:
->
-> ```bash
-> python3 notebook_to_results.py path/to/notebook.ipynb --output results.json
-> ```
->
-> The helper will execute the notebook/script and export the first usable evaluation object it finds, such as `evaluation_df`, `generations_df`, `generation_rows`, or `evaluation_rows`.
->
 > Supported JSON shapes include a top-level `entries` array, `evaluation_df`, `generations`, `records`, or pandas JSON output saved with `orient='records'` or `orient='split'.
 
 ## Generate evaluation data
