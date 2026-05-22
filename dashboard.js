@@ -11,6 +11,10 @@ const VARIATIONS = [
   'casual','production','no_examples','plain_text','negative_instruction'
 ];
 
+const KEY_STORAGE = 'groqApiKey';
+let customResults = null;
+let customResultsName = null;
+
 const PROBLEMS = [
   { id: 'humaneval_000', entry: 'has_close_elements' },
   { id: 'humaneval_001', entry: 'separate_paren_groups' },
@@ -63,15 +67,139 @@ function fmtS(arr) {
 }
 
 function loadResultsFile() {
+  if (customResults) {
+    rawResults = customResults;
+    return Promise.resolve(rawResults);
+  }
+
   return fetch(DATA_SOURCE)
     .then(resp => {
       if (!resp.ok) throw new Error(`Unable to load ${DATA_SOURCE}: ${resp.statusText}`);
       return resp.json();
     })
     .then(data => {
-      rawResults = data;
-      return data;
+      rawResults = normalizeResults(data);
+      return rawResults;
     });
+}
+
+function normalizeResults(data) {
+  if (data == null) {
+    throw new Error('Loaded file contains no data.');
+  }
+
+  if (Array.isArray(data)) {
+    return { entries: data };
+  }
+
+  if (Array.isArray(data.entries)) {
+    return data;
+  }
+
+  if (Array.isArray(data.records)) {
+    return { entries: data.records };
+  }
+
+  if (Array.isArray(data.evaluation_df)) {
+    return { entries: data.evaluation_df };
+  }
+
+  if (Array.isArray(data.generations)) {
+    return { entries: data.generations };
+  }
+
+  if (Array.isArray(data.data) && Array.isArray(data.columns)) {
+    return {
+      entries: data.data.map(row =>
+        Object.fromEntries(data.columns.map((col, idx) => [col, row[idx]]))
+      )
+    };
+  }
+
+  if (Array.isArray(data.data) && Array.isArray(data.index) && Array.isArray(data.columns)) {
+    return {
+      entries: data.data.map(row =>
+        Object.fromEntries(data.columns.map((col, idx) => [col, row[idx]]))
+      )
+    };
+  }
+
+  if (data.columns && typeof data.columns === 'object' && !Array.isArray(data.columns)) {
+    const indices = Object.keys(data.columns).reduce((idxs, col) => {
+      const colValues = data.columns[col];
+      if (colValues && typeof colValues === 'object') {
+        Object.keys(colValues).forEach(i => idxs.add(i));
+      }
+      return idxs;
+    }, new Set());
+    if (indices.size) {
+      return {
+        entries: Array.from(indices).map(index => {
+          return Object.fromEntries(
+            Object.entries(data.columns).map(([col, colValues]) => [col, colValues[index]])
+          );
+        })
+      };
+    }
+  }
+
+  if (Array.isArray(data.data)) {
+    return { entries: data.data };
+  }
+
+  throw new Error('Unsupported JSON format. Expected top-level entries array or common pandas JSON format.');
+}
+
+function handleResultsFileInput(event) {
+  const status = document.getElementById('resultsFileStatus');
+  const file = event.target.files?.[0];
+  if (!file) {
+    customResults = null;
+    customResultsName = null;
+    if (status) status.textContent = 'No file selected';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      customResults = normalizeResults(parsed);
+      customResultsName = file.name;
+      if (status) status.textContent = `Loaded ${file.name}`;
+    } catch (err) {
+      customResults = null;
+      customResultsName = null;
+      if (status) status.textContent = `Invalid JSON: ${err.message}`;
+    }
+  };
+  reader.onerror = () => {
+    customResults = null;
+    customResultsName = null;
+    if (status) status.textContent = 'Failed to read file';
+  };
+  reader.readAsText(file);
+}
+
+function loadApiKey() {
+  const key = localStorage.getItem(KEY_STORAGE) || '';
+  const input = document.getElementById('apiKey');
+  const status = document.getElementById('apiKeyStatus');
+  if (input) input.value = key;
+  if (status) status.textContent = key ? 'Saved locally' : 'No key saved';
+}
+
+function saveApiKey() {
+  const input = document.getElementById('apiKey');
+  const status = document.getElementById('apiKeyStatus');
+  if (!input) return;
+  const key = input.value.trim();
+  if (key) {
+    localStorage.setItem(KEY_STORAGE, key);
+    if (status) status.textContent = 'Saved locally';
+  } else {
+    localStorage.removeItem(KEY_STORAGE);
+    if (status) status.textContent = 'No key saved';
+  }
 }
 
 function buildAggregates(entries, models) {
@@ -126,6 +254,12 @@ async function startEval() {
       await loadResultsFile();
     }
     setP(40, 'Filtering results...');
+
+    if (!rawResults.entries || !rawResults.entries.length) {
+      throw new Error(
+        'results.json contains no entries. Run the generator with a valid GROQ_API_KEY to populate results.json.'
+      );
+    }
 
     const entries = rawResults.entries.filter(e =>
       selectedProblemIds.includes(e.problem_id) &&
@@ -273,3 +407,12 @@ function doExport() {
   a.download = 'cs614_evaluation_results.csv';
   a.click();
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadApiKey();
+  const saveBtn = document.getElementById('saveApiKeyBtn');
+  if (saveBtn) saveBtn.addEventListener('click', saveApiKey);
+
+  const resultsFile = document.getElementById('resultsFile');
+  if (resultsFile) resultsFile.addEventListener('change', handleResultsFileInput);
+});

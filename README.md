@@ -6,7 +6,7 @@ AST syntax check · structural similarity vs reference · generation latency · 
 
 1. Install dependencies:
    ```bash
-   pip install -r requirements.txt
+   python3 -m pip install -r requirements.txt
    ```
 2. Copy your Groq API key into `.env` or export it:
    ```bash
@@ -14,12 +14,16 @@ AST syntax check · structural similarity vs reference · generation latency · 
    # then edit .env and paste your GROQ_API_KEY from the notebook
    ```
 
+> Note: `dashboard.js` can store a Groq API key in your browser for convenience, but it still does not generate evaluation data directly. `generate_evaluation.py` or an equivalent notebook must create a JSON results file first.
+
+> If you already have notebook-generated results in JSON format, use the dashboard's `Load results` file picker to load that file directly.
+>
+> Supported JSON shapes include a top-level `entries` array, `evaluation_df`, `generations`, `records`, or pandas JSON output saved with `orient='records'` or `orient='split'.
+
 ## Generate evaluation data
 
-Run the Python generator to produce `results.json` for the dashboard:
-
 ```bash
-python generate_evaluation.py
+python3 generate_evaluation.py
 ```
 
 ## View the dashboard

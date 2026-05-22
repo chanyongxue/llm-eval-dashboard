@@ -46,8 +46,8 @@
   /* controls */
   .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg)}
   .controls label{font-size:12px;color:var(--text2);white-space:nowrap}
-  select{background:var(--bg3);color:var(--text);border:0.5px solid var(--border2);border-radius:var(--radius);padding:6px 10px;font-size:12px;font-family:var(--sans);cursor:pointer;outline:none}
-  select:focus{border-color:var(--accent)}
+  select, input{background:var(--bg3);color:var(--text);border:0.5px solid var(--border2);border-radius:var(--radius);padding:6px 10px;font-size:12px;font-family:var(--sans);cursor:pointer;outline:none}
+  select:focus, input:focus{border-color:var(--accent)}
   .sep{width:0.5px;height:22px;background:var(--border);margin:0 4px}
   .btn{padding:7px 18px;font-size:12px;font-weight:500;border:0.5px solid var(--border2);border-radius:var(--radius);cursor:pointer;background:var(--bg3);color:var(--text);transition:all .15s;white-space:nowrap}
   .btn:hover{background:var(--bg);border-color:var(--border2)}
@@ -158,6 +158,15 @@
       <option value="all">All 3 models</option>
     </select>
     <div class="sep"></div>
+    <label>Groq API key</label>
+    <input id="apiKey" type="password" placeholder="Paste API key here" />
+    <button class="btn" type="button" id="saveApiKeyBtn">Save key</button>
+    <span id="apiKeyStatus" style="font-size:11px;color:var(--text2);margin-left:8px;white-space:nowrap"></span>
+    <div class="sep"></div>
+    <label>Load results</label>
+    <input id="resultsFile" type="file" accept=".json" />
+    <span id="resultsFileStatus" style="font-size:11px;color:var(--text2);margin-left:8px;white-space:nowrap">No file selected</span>
+    <div class="sep"></div>
     <button class="btn primary" id="runBtn" onclick="startEval()">Run evaluation</button>
     <button class="btn" id="expBtn" style="display:none" onclick="doExport()">Export CSV</button>
   </div>
@@ -179,7 +188,7 @@
  
   <div id="emptyState">
     <h4>Ready to load results</h4>
-    <p>Run <code>generate_evaluation.py</code> first to create <code>results.json</code>, then click <strong>Run evaluation</strong> to load the dashboard from that file.</p>
+    <p>Set `GROQ_API_KEY` in `.env`, run <code>python3 generate_evaluation.py</code> to create <code>results.json</code>, or load a notebook-generated JSON result file using the dashboard file picker, then click <strong>Run evaluation</strong>.</p>
   </div>
  
 </div>
