@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CS614 LLM Evaluation Dashboard</title>
+<style>
+  :root {
+    --bg: #0f0f11;
+    --bg2: #17171a;
+    --bg3: #1e1e22;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8e6e0;
+    --text2: #8b8984;
+    --text3: #5a5856;
+    --accent: #4f8ef7;
+    --accent2: #2d6dd4;
+    --green: #3ecf6e;
+    --amber: #f5a623;
+    --red: #e05252;
+    --green-bg: rgba(62,207,110,0.1);
+    --amber-bg: rgba(245,166,35,0.1);
+    --red-bg: rgba(224,82,82,0.1);
+    --radius: 8px;
+    --radius-lg: 12px;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6}
+  body{min-height:100vh;padding:0}
+ 
+  /* layout */
+  .page{max-width:1100px;margin:0 auto;padding:2.5rem 2rem 4rem}
+ 
+  /* header */
+  .header{margin-bottom:2.5rem;border-bottom:0.5px solid var(--border);padding-bottom:1.5rem}
+  .header-top{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:.5rem}
+  .title{font-size:22px;font-weight:600;letter-spacing:-.3px;color:var(--text)}
+  .title span{color:var(--accent)}
+  .badge-group{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;border:0.5px solid var(--border2);color:var(--text2);background:var(--bg3)}
+  .subtitle{font-size:13px;color:var(--text2);max-width:600px}
+ 
+  /* controls */
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg)}
+  .controls label{font-size:12px;color:var(--text2);white-space:nowrap}
+  select{background:var(--bg3);color:var(--text);border:0.5px solid var(--border2);border-radius:var(--radius);padding:6px 10px;font-size:12px;font-family:var(--sans);cursor:pointer;outline:none}
+  select:focus{border-color:var(--accent)}
+  .sep{width:0.5px;height:22px;background:var(--border);margin:0 4px}
+  .btn{padding:7px 18px;font-size:12px;font-weight:500;border:0.5px solid var(--border2);border-radius:var(--radius);cursor:pointer;background:var(--bg3);color:var(--text);transition:all .15s;white-space:nowrap}
+  .btn:hover{background:var(--bg);border-color:var(--border2)}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
+  .btn.primary:disabled{background:var(--bg3);color:var(--text2);border-color:var(--border)}
+ 
+  /* progress */
+  #progSection{margin-bottom:1.5rem;display:none}
+  .pbar-wrap{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-bottom:6px}
+  .pbar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .2s ease}
+  .pbar-label{font-size:11px;color:var(--text3);margin-bottom:.75rem;font-family:var(--mono)}
+  .logbox{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-family:var(--mono);font-size:11px;color:var(--text3);max-height:110px;overflow-y:auto;white-space:pre-wrap;line-height:1.5}
+  .logbox .ok{color:var(--green)}
+  .logbox .err{color:var(--red)}
+ 
+  /* summary cards */
+  #summarySection{display:none;margin-bottom:1.5rem}
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .scard{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.1rem}
+  .scard .model-tag{font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scard .metric-val{font-size:24px;font-weight:600;color:var(--text);letter-spacing:-.5px;line-height:1.1}
+  .scard .metric-name{font-size:11px;color:var(--text2);margin-top:3px}
+ 
+  /* results table area */
+  #resultsSection{display:none}
+  .tabs{display:flex;gap:0;border-bottom:0.5px solid var(--border);margin-bottom:1.25rem}
+  .tab{padding:8px 16px;font-size:12px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;font-weight:500}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+ 
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead tr{background:var(--bg2)}
+  th{padding:9px 12px;text-align:left;font-weight:500;font-size:11px;color:var(--text2);border-bottom:0.5px solid var(--border);white-space:nowrap}
+  th:not(:first-child){text-align:center}
+  td{padding:8px 12px;border-bottom:0.5px solid var(--border);vertical-align:middle}
+  td:not(:first-child){text-align:center}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(255,255,255,.02)}
+  .vcol{font-weight:500;color:var(--text);font-size:12px;white-space:nowrap}
+ 
+  .badge{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--mono)}
+  .badge.g{background:var(--green-bg);color:var(--green)}
+  .badge.a{background:var(--amber-bg);color:var(--amber)}
+  .badge.r{background:var(--red-bg);color:var(--red)}
+ 
+  .barwrap{display:flex;align-items:center;gap:6px;justify-content:center}
+  .barbg{width:50px;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;flex-shrink:0}
+  .barfg{height:100%;border-radius:2px;background:var(--accent)}
+  .barval{font-size:11px;color:var(--text2);font-family:var(--mono);min-width:30px;text-align:left}
+ 
+  .latval{font-family:var(--mono);font-size:12px;color:var(--text2)}
+ 
+  /* compliance row */
+  .compliance-row{margin-top:1rem;padding:.75rem 1rem;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text2);display:flex;gap:1.5rem;flex-wrap:wrap}
+  .compliance-row strong{color:var(--text)}
+ 
+  /* empty state */
+  #emptyState{padding:4rem 0;text-align:center;color:var(--text2)}
+  #emptyState h4{font-size:16px;font-weight:500;color:var(--text);margin-bottom:.5rem}
+  #emptyState p{font-size:13px;max-width:420px;margin:0 auto;line-height:1.6}
+ 
+  /* footer note */
+  .footnote{margin-top:1.5rem;font-size:11px;color:var(--text3);line-height:1.7;padding-top:1rem;border-top:0.5px solid var(--border)}
+  .footnote code{font-family:var(--mono);color:var(--text2);background:var(--bg3);padding:1px 5px;border-radius:3px}
+ 
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .running-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;vertical-align:middle;margin-right:6px}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="page">
+ 
+  <div class="header">
+    <div class="header-top">
+      <div class="title">CS614 <span>LLM Eval</span> Dashboard</div>
+      <div class="badge-group">
+        <span class="chip">llama-3.1-8b</span>
+        <span class="chip">qwen3-32b</span>
+        <span class="chip">gpt-oss-120b</span>
+        <span class="chip">HumanEval</span>
+      </div>
+    </div>
+    <p class="subtitle">Mirrors <code style="font-family:monospace;font-size:12px;color:#8b8984">evaluation.py</code> — AST syntax validation · structural similarity vs reference · generation latency · test pass/fail across 10 prompt variations</p>
+  </div>
+ 
+  <div class="controls">
+    <label>Problems</label>
+    <select id="numP">
+      <option value="3">3 (fast)</option>
+      <option value="5" selected>5 (default)</option>
+      <option value="10">10 (full)</option>
+    </select>
+    <label>Runs / prompt</label>
+    <select id="numR">
+      <option value="1">1</option>
+      <option value="2" selected>2</option>
+    </select>
+    <div class="sep"></div>
+    <label>Model</label>
+    <select id="mdl">
+      <option value="meta">llama-3.1-8b-instant</option>
+      <option value="openai">openai/gpt-oss-120b</option>
+      <option value="alibaba">qwen/qwen3-32b</option>
+      <option value="all">All 3 models</option>
+    </select>
+    <div class="sep"></div>
+    <button class="btn primary" id="runBtn" onclick="startEval()">Run evaluation</button>
+    <button class="btn" id="expBtn" style="display:none" onclick="doExport()">Export CSV</button>
+  </div>
+ 
+  <div id="progSection">
+    <div class="pbar-wrap"><div class="pbar-fill" id="pf" style="width:0%"></div></div>
+    <div class="pbar-label" id="pl">Initializing…</div>
+    <div class="logbox" id="log"></div>
+  </div>
+ 
+  <div id="summarySection">
+    <div class="summary-grid" id="sg"></div>
+  </div>
+ 
+  <div id="resultsSection">
+    <div class="tabs" id="tabsRow"></div>
+    <div id="tbl"></div>
+  </div>
+ 
+  <div id="emptyState">
+    <h4>Ready to evaluate</h4>
+    <p>Select your options above and click <strong>Run evaluation</strong>. Each run calls the Anthropic API via a server-side proxy — your key stays safe.</p>
+  </div>
+ 
+</div>
+ 
+<script src="https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js"></script>
+<script>
+const API_ENDPOINT = "/api/anthropic";
+ 
+const MODELS_MAP = {
+  meta:    { label: "llama-3.1-8b-instant",  display: "LLaMA 3.1 8B" },
+  openai:  { label: "openai/gpt-oss-120b",   display: "GPT-OSS 120B" },
+  alibaba: { label: "qwen/qwen3-32b",         display: "Qwen3 32B" }
+};
+ 
+const VARIATIONS = [
+  "baseline","concise","verbose","expert","academic",
+  "casual","production","no_examples","plain_text","negative_instruction"
+];
+ 
+const SYSTEM_PROMPT = `You are an expert Python programmer.
+ 
+Complete the requested function.
+ 
+RULES:
+- Return ONLY valid Python code
+- No markdown
+- No explanations
+- No comments outside the code
+- Preserve function signature
+- Complete implementation only`;
+ 
+const PROBLEMS = [
+  {
+    id: "humaneval_000", entry: "has_close_elements",
+    ref: `def has_close_elements(numbers, threshold):\n    for i in range(len(numbers)):\n        for j in range(i+1,len(numbers)):\n            if abs(numbers[i]-numbers[j])<threshold: return True\n    return False`,
+    test: `\ndef check(c):\n    assert c([1.0,2.0,3.9,4.0,5.0,2.2],0.3)==True\n    assert c([1.0,2.0,3.9,4.0,5.0,2.2],0.05)==False\n    assert c([1.0,2.0,5.9,4.0,5.0],0.95)==True\n    assert c([1.0,2.0,3.0,4.0,5.0,2.0],0.1)==True`,
+    prompts: {
+      baseline: `Complete this Python function:\n\nfrom typing import List\n\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    """Check if any two numbers are closer than threshold.\n    >>> has_close_elements([1.0,2.0,3.0],0.5)\n    False\n    >>> has_close_elements([1.0,2.8,3.0,4.0,5.0,2.0],0.3)\n    True\n    """`,
+      concise: `Complete: def has_close_elements(numbers, threshold): """Return True if any two numbers differ by less than threshold."""`,
+      verbose: `Implement has_close_elements. Check every pair of distinct elements. If absolute difference < threshold, return True; otherwise False.\n\ndef has_close_elements(numbers: list, threshold: float) -> bool:`,
+      expert: `Implement O(n^2) pairwise proximity check. Return True iff exists i!=j with |a[i]-a[j]|<threshold.\n\ndef has_close_elements(numbers, threshold):`,
+      academic: `Given sequence S and epsilon>0, determine if distinct i,j exist s.t. |S[i]-S[j]|<epsilon.\n\ndef has_close_elements(numbers: list, threshold: float) -> bool:`,
+      casual: `Write a function that checks if any two numbers in a list are really close together (less than threshold apart).\n\ndef has_close_elements(numbers, threshold):`,
+      production: `def has_close_elements(numbers: list, threshold: float) -> bool:\n    """Args:\n        numbers: list of floats\n        threshold: proximity threshold\n    Returns:\n        bool: True if any pair within threshold\n    """`,
+      no_examples: `Complete: def has_close_elements(numbers, threshold):\n    """Check if any two numbers are closer than threshold."""`,
+      plain_text: `Write a Python function named has_close_elements that takes a list of floats and a threshold. Return True if any two elements differ by less than the threshold.`,
+      negative_instruction: `Complete this. Do NOT use sorting. Do NOT import numpy.\n\ndef has_close_elements(numbers: list, threshold: float) -> bool:\n    """Check if any two numbers differ by less than threshold."""`
+    }
+  },
+  {
+    id: "humaneval_001", entry: "separate_paren_groups",
+    ref: `def separate_paren_groups(paren_string):\n    result=[]; buf=[]; depth=0\n    for c in paren_string:\n        if c==' ': continue\n        buf.append(c)\n        if c=='(': depth+=1\n        elif c==')': depth-=1\n        if depth==0 and buf: result.append(''.join(buf)); buf=[]\n    return result`,
+    test: `\ndef check(c):\n    assert c('(()()) ((())) () ((())()())')==['(()())','((()))','()','((())()())']\n    assert c('() (()) ((())) (((())))')==['()','(())','((()))','(((())))']\n    assert c('( ) (( )) (( )( ))')==['()','(())','(()())']`,
+    prompts: {
+      baseline: `Complete:\nfrom typing import List\ndef separate_paren_groups(paren_string: str) -> List[str]:\n    """Split balanced top-level paren groups into a list. Ignore spaces.\n    >>> separate_paren_groups('( ) (( ))')\n    ['()', '(())']\n    """`,
+      concise: `Complete: def separate_paren_groups(s): """Return list of balanced top-level paren groups."""`,
+      verbose: `Implement separate_paren_groups. Parse a string of balanced parenthesis groups separated by spaces. Return each top-level group as an element in a list.`,
+      expert: `Tokenize string into maximal balanced paren substrings using depth tracking. Ignore whitespace.\n\ndef separate_paren_groups(paren_string):`,
+      academic: `Given string over {(,),space}, partition into maximal substrings forming balanced expressions.\n\ndef separate_paren_groups(paren_string: str):`,
+      casual: `Write a function that takes '() (()) ((()))' and breaks it into separate paren groups as a list.`,
+      production: `def separate_paren_groups(paren_string: str) -> list:\n    """Parse balanced parenthesis groups.\n    Args: paren_string: space-separated balanced groups\n    Returns: list of group strings\n    """`,
+      no_examples: `Complete: def separate_paren_groups(paren_string): """Split string of balanced paren groups into a list."""`,
+      plain_text: `Write a Python function separate_paren_groups(paren_string) that returns balanced top-level paren groups as a list.`,
+      negative_instruction: `Complete this. Do NOT use regex. Do NOT use split().\n\ndef separate_paren_groups(paren_string):`
+    }
+  },
+  {
+    id: "humaneval_002", entry: "truncate_number",
+    ref: `def truncate_number(number):\n    return number % 1.0`,
+    test: `\ndef check(c):\n    assert c(3.5)==0.5\n    assert abs(c(1.33)-0.33)<1e-6\n    assert abs(c(123.456)-0.456)<1e-6`,
+    prompts: {
+      baseline: `Complete: def truncate_number(number: float) -> float:\n    """Return the decimal part of a positive float.\n    >>> truncate_number(3.5)\n    0.5\n    """`,
+      concise: `Complete: def truncate_number(x: float) -> float: """Return fractional part of positive float."""`,
+      verbose: `Implement truncate_number. Given a positive float like 3.5, return only the decimal portion (0.5).`,
+      expert: `Return x - floor(x) for positive float x.\n\ndef truncate_number(number: float) -> float:`,
+      academic: `For x in R+, compute the fractional part: x - floor(x).\n\ndef truncate_number(number: float) -> float:`,
+      casual: `Just return the decimal part of a float. Like 3.5 gives 0.5, 2.7 gives 0.7.`,
+      production: `def truncate_number(number: float) -> float:\n    """Extract decimal portion of positive float.\n    Args: number: positive float\n    Returns: fractional part\n    """`,
+      no_examples: `Complete: def truncate_number(number): """Return the decimal part of a positive float."""`,
+      plain_text: `Write truncate_number(number) that returns only the decimal part of a float.`,
+      negative_instruction: `Complete this. Do NOT use math.floor. Do NOT use int() casting.\n\ndef truncate_number(number: float) -> float:`
+    }
+  },
+  {
+    id: "humaneval_003", entry: "below_zero",
+    ref: `def below_zero(operations):\n    bal=0\n    for op in operations:\n        bal+=op\n        if bal<0: return True\n    return False`,
+    test: `\ndef check(c):\n    assert c([])==False\n    assert c([1,2,-3,1,2,-3])==False\n    assert c([1,2,-4,5,6])==True\n    assert c([1,-1,2,-2,5,-5,4,-5])==True`,
+    prompts: {
+      baseline: `Complete:\nfrom typing import List\ndef below_zero(operations: List[int]) -> bool:\n    """Detect if bank balance goes below zero.\n    >>> below_zero([1,2,3])\n    False\n    >>> below_zero([1,2,-4,5])\n    True\n    """`,
+      concise: `Complete: def below_zero(ops): """Return True if running sum ever < 0."""`,
+      verbose: `Implement below_zero. Simulate a bank account starting at 0. Apply each integer operation. Return True the moment balance goes negative.`,
+      expert: `Detect if prefix sum of integer list ever becomes strictly negative.\n\ndef below_zero(operations):`,
+      academic: `Given sequence a_1..a_n, determine if any partial sum < 0.\n\ndef below_zero(operations: list) -> bool:`,
+      casual: `Check if a bank balance ever drops below zero. Start at 0, add each number, return True if it hits negative.`,
+      production: `def below_zero(operations: list) -> bool:\n    """Detect negative balance during transaction processing.\n    Args: operations: list of int amounts\n    Returns: True if balance drops below zero\n    """`,
+      no_examples: `Complete: def below_zero(operations): """Return True if running total ever drops below zero."""`,
+      plain_text: `Write below_zero(operations) that returns True if the running sum ever goes negative.`,
+      negative_instruction: `Complete this. Do NOT use any() with generators. Do NOT use sum().\n\ndef below_zero(operations: list) -> bool:`
+    }
+  },
+  {
+    id: "humaneval_004", entry: "mean_absolute_deviation",
+    ref: `def mean_absolute_deviation(numbers):\n    mean=sum(numbers)/len(numbers)\n    return sum(abs(x-mean) for x in numbers)/len(numbers)`,
+    test: `\ndef check(c):\n    assert abs(c([1.0,2.0,3.0])-2.0/3.0)<1e-6\n    assert abs(c([1.0,2.0,3.0,4.0])-1.0)<1e-6\n    assert abs(c([1.0,2.0,3.0,4.0,5.0])-6.0/5.0)<1e-6`,
+    prompts: {
+      baseline: `Complete:\nfrom typing import List\ndef mean_absolute_deviation(numbers: List[float]) -> float:\n    """Calculate MAD: average absolute difference from mean.\n    >>> mean_absolute_deviation([1.0,2.0,3.0,4.0])\n    1.0\n    """`,
+      concise: `Complete: def mean_absolute_deviation(numbers): """Compute MAD: mean of absolute deviations from the mean."""`,
+      verbose: `Implement mean_absolute_deviation. Compute the mean, then find the average of absolute differences between each element and that mean.`,
+      expert: `Return (1/n)*sum(|x_i - mean(x)|) for a float list.\n\ndef mean_absolute_deviation(numbers):`,
+      academic: `Compute MAD(X)=E[|X-E[X]|] for empirical distribution.\n\ndef mean_absolute_deviation(numbers: list) -> float:`,
+      casual: `Find the average distance each number is from the mean of the list.`,
+      production: `def mean_absolute_deviation(numbers: list) -> float:\n    """Calculate MAD for statistical analysis.\n    Args: numbers: list of floats\n    Returns: mean absolute deviation\n    """`,
+      no_examples: `Complete: def mean_absolute_deviation(numbers): """Calculate mean absolute deviation."""`,
+      plain_text: `Write mean_absolute_deviation(numbers) that computes the mean absolute deviation.`,
+      negative_instruction: `Complete this. Do NOT import numpy or statistics.\n\ndef mean_absolute_deviation(numbers: list) -> float:`
+    }
+  },
+  {
+    id: "humaneval_005", entry: "intersperse",
+    ref: `def intersperse(numbers, delimeter):\n    if not numbers: return []\n    result=[]\n    for i,n in enumerate(numbers):\n        result.append(n)\n        if i<len(numbers)-1: result.append(delimeter)\n    return result`,
+    test: `\ndef check(c):\n    assert c([],4)==[]\n    assert c([1,2,3],4)==[1,4,2,4,3]\n    assert c([1,2,3,4,5],8)==[1,8,2,8,3,8,4,8,5]`,
+    prompts: {
+      baseline: `Complete:\nfrom typing import List\ndef intersperse(numbers: List[int], delimeter: int) -> List[int]:\n    """Insert delimeter between every pair of consecutive elements.\n    >>> intersperse([1,2,3],4)\n    [1,4,2,4,3]\n    """`,
+      concise: `Complete: def intersperse(numbers, delimeter): """Insert delimeter between all list elements."""`,
+      verbose: `Implement intersperse. Given a list and a delimiter, return a new list with the delimiter between every adjacent pair.`,
+      expert: `Interleave delimiter between consecutive elements.\n\ndef intersperse(numbers, delimeter):`,
+      academic: `Construct b s.t. b[2i]=a[i] and b[2i+1]=d for i<n-1.\n\ndef intersperse(numbers, delimeter):`,
+      casual: `Put a number between every element of a list. Like [1,2,3] with 4 becomes [1,4,2,4,3].`,
+      production: `def intersperse(numbers: list, delimeter: int) -> list:\n    """Insert delimiter between every consecutive pair.\n    Args: numbers: input list; delimeter: value to insert\n    """`,
+      no_examples: `Complete: def intersperse(numbers, delimeter): """Insert the delimeter between each pair of elements."""`,
+      plain_text: `Write intersperse(numbers, delimeter) that inserts delimeter between every adjacent pair of elements.`,
+      negative_instruction: `Complete this. Do NOT use list comprehensions. Do NOT use zip().\n\ndef intersperse(numbers: list, delimeter: int) -> list:`
+    }
+  },
+  {
+    id: "humaneval_006", entry: "parse_nested_parens",
+    ref: `def parse_nested_parens(paren_string):\n    def depth(s):\n        d=mx=0\n        for c in s:\n            if c=='(': d+=1; mx=max(mx,d)\n            elif c==')': d-=1\n        return mx\n    return [depth(g) for g in paren_string.split() if g]`,
+    test: `\ndef check(c):\n    assert c('(()()) ((())) () ((())()())')==[2,3,1,3]\n    assert c('() (()) ((())) (((())))')==[1,2,3,4]`,
+    prompts: {
+      baseline: `Complete:\nfrom typing import List\ndef parse_nested_parens(paren_string: str) -> List[int]:\n    """Return max nesting depth of each space-separated paren group.\n    >>> parse_nested_parens('(()()) ((()))')\n    [2,3]\n    """`,
+      concise: `Complete: def parse_nested_parens(s): """Return max nesting depth of each paren group."""`,
+      verbose: `Implement parse_nested_parens. Split input by spaces, then for each group compute the maximum nesting depth.`,
+      expert: `For each top-level paren group, compute max stack depth.\n\ndef parse_nested_parens(paren_string):`,
+      academic: `Given string of paren groups, return sequence of max depths.\n\ndef parse_nested_parens(paren_string: str) -> list:`,
+      casual: `Split the string into paren groups and figure out the max nesting depth of each one.`,
+      production: `def parse_nested_parens(paren_string: str) -> list:\n    """Parse nesting depths of parenthesis groups.\n    Args: paren_string: space-separated paren groups\n    Returns: list of max nesting depths\n    """`,
+      no_examples: `Complete: def parse_nested_parens(paren_string): """Return max nesting depth of each paren group."""`,
+      plain_text: `Write parse_nested_parens(paren_string) returning max nesting depths for each space-separated paren group.`,
+      negative_instruction: `Complete this. Do NOT use a stack or collections.\n\ndef parse_nested_parens(paren_string: str) -> list:`
+    }
+  },
+  {
+    id: "humaneval_007", entry: "filter_by_substring",
+    ref: `def filter_by_substring(strings, substring):\n    return [s for s in strings if substring in s]`,
+    test: `\ndef check(c):\n    assert c([],'a')==[]\n    assert c(['abc','bacd','cde','array'],'a')==['abc','bacd','array']\n    assert c(['abc','def','ghi'],'x')==[]`,
+    prompts: {
+      baseline: `Complete:\nfrom typing import List\ndef filter_by_substring(strings: List[str], substring: str) -> List[str]:\n    """Keep only strings containing the substring.\n    >>> filter_by_substring(['abc','bcd'],'bc')\n    ['abc','bcd']\n    """`,
+      concise: `Complete: def filter_by_substring(strings, substring): """Keep only strings containing substring."""`,
+      verbose: `Implement filter_by_substring. Given a list of strings, return only those containing the given substring.`,
+      expert: `Return sublist where each element contains the given substring.\n\ndef filter_by_substring(strings, substring):`,
+      academic: `Filter S to retain s_i such that substring is contained in s_i.\n\ndef filter_by_substring(strings: list, substring: str) -> list:`,
+      casual: `Filter a list to keep only strings that have a certain substring in them.`,
+      production: `def filter_by_substring(strings: list, substring: str) -> list:\n    """Filter to strings containing substring.\n    Args: strings: list; substring: search term\n    """`,
+      no_examples: `Complete: def filter_by_substring(strings, substring): """Return strings containing the substring."""`,
+      plain_text: `Write filter_by_substring(strings, substring) that returns only strings from the list that contain substring.`,
+      negative_instruction: `Complete this. Do NOT use filter(). Do NOT use regex.\n\ndef filter_by_substring(strings: list, substring: str) -> list:`
+    }
+  },
+  {
+    id: "humaneval_008", entry: "sum_product",
+    ref: `def sum_product(numbers):\n    s=sum(numbers) if numbers else 0\n    p=1\n    for n in numbers: p*=n\n    return (s,p)`,
+    test: `\ndef check(c):\n    assert c([])==(0,1)\n    assert c([1,1,1])==(3,1)\n    assert c([100,0])==(100,0)\n    assert c([3,5,7])==(15,105)`,
+    prompts: {
+      baseline: `Complete:\nfrom typing import List,Tuple\ndef sum_product(numbers: List[int]) -> Tuple[int,int]:\n    """Return (sum, product) of list.\n    >>> sum_product([1,2,3,4])\n    (10,24)\n    """`,
+      concise: `Complete: def sum_product(numbers): """Return (sum, product) of list elements."""`,
+      verbose: `Implement sum_product. Return a tuple: first element is sum, second is product. Empty list returns (0,1).`,
+      expert: `Return (sum(a), prod(a)), empty->[0,1].\n\ndef sum_product(numbers):`,
+      academic: `Compute (S,P) where S=sum(a_i), P=prod(a_i). Empty->(0,1).\n\ndef sum_product(numbers):`,
+      casual: `Return the sum and product of a list as a tuple. Empty list should give (0,1).`,
+      production: `def sum_product(numbers: list) -> tuple:\n    """Compute aggregate statistics.\n    Args: numbers: list of ints\n    Returns: (sum, product) tuple\n    """`,
+      no_examples: `Complete: def sum_product(numbers): """Return (sum, product). Empty list returns (0,1)."""`,
+      plain_text: `Write sum_product(numbers) returning a tuple of the sum and product of all numbers.`,
+      negative_instruction: `Complete this. Do NOT use functools.reduce(). Do NOT use math.prod().\n\ndef sum_product(numbers: list) -> tuple:`
+    }
+  },
+  {
+    id: "humaneval_009", entry: "rolling_max",
+    ref: `def rolling_max(numbers):\n    result=[]; mx=float('-inf')\n    for n in numbers:\n        mx=max(mx,n); result.append(mx)\n    return result`,
+    test: `\ndef check(c):\n    assert c([])==[]\n    assert c([1,2,3,2,3,4,2])==[1,2,3,3,3,4,4]\n    assert c([3,2,1])==[3,3,3]`,
+    prompts: {
+      baseline: `Complete:\nfrom typing import List\ndef rolling_max(numbers: List[int]) -> List[int]:\n    """Return running maximum of a list.\n    >>> rolling_max([1,2,3,2,3,4,2])\n    [1,2,3,3,3,4,4]\n    """`,
+      concise: `Complete: def rolling_max(numbers): """Return cumulative maximum at each position."""`,
+      verbose: `Implement rolling_max. For each index i, the output is the maximum value seen so far (indices 0 to i inclusive).`,
+      expert: `Compute prefix-max sequence of integer list.\n\ndef rolling_max(numbers):`,
+      academic: `Construct b where b[i]=max(a[0..i]).\n\ndef rolling_max(numbers: list) -> list:`,
+      casual: `For each position in the list, track the max seen so far. Return those max values as a list.`,
+      production: `def rolling_max(numbers: list) -> list:\n    """Compute running maximum sequence.\n    Args: numbers: list of ints\n    Returns: list of running maxima\n    """`,
+      no_examples: `Complete: def rolling_max(numbers): """Return list of running maximums up to each index."""`,
+      plain_text: `Write rolling_max(numbers) returning a list where each element is the max of all elements up to that position.`,
+      negative_instruction: `Complete this. Do NOT use itertools.accumulate(). Do NOT use numpy.\n\ndef rolling_max(numbers: list) -> list:`
+    }
+  }
+];
+ 
+/* ─── state ─── */
+let allResults = {};
+let isRunning = false;
+ 
+/* ─── helpers ─── */
+function log(msg, type='') {
+  const b = document.getElementById('log');
+  const line = document.createElement('span');
+  if (type) line.className = type;
+  line.textContent = msg + '\n';
+  b.appendChild(line);
+  b.scrollTop = b.scrollHeight;
+}
+function setP(pct, label) {
+  document.getElementById('pf').style.width = pct + '%';
+  document.getElementById('pl').textContent = label;
+}
+function avg(arr) {
+  const v = arr.filter(x => x != null);
+  return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null;
+}
+function pct(arr) { const a=avg(arr); return a!=null ? (a*100).toFixed(0)+'%' : '—'; }
+function fmtL(arr) { const a=avg(arr); return a!=null ? a.toFixed(2)+'s' : '—'; }
+function fmtS(arr) { const a=avg(arr); return a!=null ? (a*100).toFixed(0)+'%' : '—'; }
+ 
+/* ─── code processing ─── */
+function extractCode(text) {
+  if (!text) return null;
+  text = text.replace(/```python/gi,'').replace(/```/g,'');
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi,'');
+  text = text.trim();
+  const m = text.match(/(from\s+\w+\s+import|import\s+\w+|def\s+\w+\s*\()/);
+  if (m) text = text.slice(m.index);
+  return text.trim();
+}
+function instructionCompliance(raw) {
+  if (!raw) return false;
+  return !/(```|<think>|Here is|Explanation)/i.test(raw);
+}
+const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.24.0/full/';
+async function ensurePyodide() {
+  if (window.pyodide) return window.pyodide;
+  if (!window.pyodideReadyPromise) {
+    window.pyodideReadyPromise = loadPyodide({ indexURL: PYODIDE_URL })
+      .then(py => {
+        window.pyodide = py;
+        py.runPython(`
+import ast, traceback
+
+def _run_generated(code, func_name, test_source):
+    result = {'passed': False, 'syntax_valid': False, 'error': None, 'traceback': ''}
+    try:
+        ast.parse(code)
+        result['syntax_valid'] = True
+    except Exception:
+        result['error'] = 'syntax_error'
+        result['traceback'] = traceback.format_exc()
+        return result
+
+    namespace = {}
+    try:
+        exec(code, namespace)
+    except Exception:
+        result['error'] = 'runtime_error'
+        result['traceback'] = traceback.format_exc()
+        return result
+
+    if func_name not in namespace or not callable(namespace[func_name]):
+        result['error'] = 'missing_function'
+        result['traceback'] = f"Missing function {func_name}"
+        return result
+
+    namespace['candidate'] = namespace[func_name]
+    try:
+        exec(test_source, namespace)
+        if 'check' not in namespace or not callable(namespace['check']):
+            result['error'] = 'missing_test'
+            result['traceback'] = 'Missing check() in test source'
+            return result
+        namespace['check'](namespace['candidate'])
+    except AssertionError:
+        result['error'] = 'failed_tests'
+        result['traceback'] = traceback.format_exc()
+        return result
+    except Exception:
+        result['error'] = 'test_exception'
+        result['traceback'] = traceback.format_exc()
+        return result
+
+    result['passed'] = True
+    return result
+`);
+        return py;
+      });
+  }
+  return window.pyodideReadyPromise;
+}
+
+async function evaluateCode(code, candidateName, testSource) {
+  if (!code) return { syntax_valid: false, passed: false, error: 'empty_output', traceback: '' };
+  try {
+    const py = await ensurePyodide();
+    py.globals.set('code_input', code);
+    py.globals.set('func_name', candidateName);
+    py.globals.set('test_source', testSource);
+    const result = py.runPython('_run_generated(code_input, func_name, test_source)');
+    return result.toJs ? result.toJs({ dict: true }) : result;
+  } catch (err) {
+    return { syntax_valid: false, passed: false, error: 'pyodide_error', traceback: String(err) };
+  }
+}
+
+function extractASTFeatures(code) {
+  if (!code) return null;
+  return {
+    for_loops:           (code.match(/\bfor\b/g)||[]).length,
+    while_loops:         (code.match(/\bwhile\b/g)||[]).length,
+    if_statements:       (code.match(/\bif\b/g)||[]).length,
+    function_calls:      (code.match(/\w+\s*\(/g)||[]).length,
+    list_comprehensions: (code.match(/\[.+\bfor\b/g)||[]).length,
+    recursion:           /return\s+\w+\s*\(/.test(code) ? 1 : 0,
+    node_count:          code.split('\n').filter(l=>l.trim()).length
+  };
+}
+function structuralSimilarity(gen, ref) {
+  if (!gen || !ref) return null;
+  const keys = Object.keys(ref);
+  const diffs = keys.map(k => {
+    const g=gen[k]||0, r=ref[k]||0, mx=Math.max(g,r,1);
+    return 1 - Math.abs(g-r)/mx;
+  });
+  return diffs.reduce((a,b)=>a+b,0)/diffs.length;
+}
+ 
+/* ─── API call ─── */
+async function callAPI(prompt, modelLabel) {
+  const t0 = performance.now();
+  const resp = await fetch(API_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      system: SYSTEM_PROMPT + `\n\nYou are simulating the model: ${modelLabel}. Match its typical coding style and capability level.`,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  const elapsed = (performance.now()-t0)/1000;
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  const raw = data.content?.map(b=>b.text||'').join('')
+      || data.completion?.map?.(c=>c.text||c)?.join('')
+      || data.completion?.text
+      || data.output
+      || data.choices?.map?.(c=>c.text||c.message?.content||'').join('')
+      || data.result
+      || '';
+  return { raw, clean: extractCode(raw), generation_seconds: parseFloat(elapsed.toFixed(3)) };
+}
+ 
+/* ─── main eval loop ─── */
+async function startEval() {
+  if (isRunning) return;
+  isRunning = true;
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('expBtn').style.display = 'none';
+  document.getElementById('progSection').style.display = 'block';
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('summarySection').style.display = 'none';
+  document.getElementById('resultsSection').style.display = 'none';
+  document.getElementById('log').innerHTML = '';
+ 
+  const numP = parseInt(document.getElementById('numP').value);
+  const numR = parseInt(document.getElementById('numR').value);
+  const mdlSel = document.getElementById('mdl').value;
+  const models = mdlSel === 'all' ? ['meta','openai','alibaba'] : [mdlSel];
+  const problems = PROBLEMS.slice(0, numP);
+  const total = models.length * VARIATIONS.length * problems.length * numR;
+  let done = 0;
+ 
+  for (const mk of models) {
+    const modelLabel = MODELS_MAP[mk].label;
+    allResults[mk] = {};
+ 
+    for (const v of VARIATIONS) {
+      allResults[mk][v] = {
+        syntax_valid:[], passed_tests:[], generation_seconds:[],
+        structural_similarities:[], instruction_compliance:[], error_types:[]
+      };
+      const r = allResults[mk][v];
+ 
+      for (const prob of problems) {
+        const refFeats = extractASTFeatures(prob.ref);
+        for (let run = 0; run < numR; run++) {
+          const prompt = prob.prompts[v] || prob.prompts['baseline'];
+          log(`[${MODELS_MAP[mk].display}] ${v} · ${prob.id} · run ${run + 1} / ${numR}`);
+          try {
+            const { raw, clean, generation_seconds } = await callAPI(prompt, modelLabel);
+            const evalResult = await evaluateCode(clean, prob.entry, prob.test);
+            const sv = evalResult.syntax_valid;
+            const passed = evalResult.passed;
+            const ic = instructionCompliance(raw);
+            const genFeats = extractASTFeatures(clean);
+            const sim = structuralSimilarity(genFeats, refFeats);
+            r.syntax_valid.push(sv ? 1 : 0);
+            r.passed_tests.push(passed ? 1 : 0);
+            r.generation_seconds.push(generation_seconds);
+            r.structural_similarities.push(sim);
+            r.instruction_compliance.push(ic ? 1 : 0);
+            r.error_types.push(passed ? null : (evalResult.error || 'failed_tests'));
+            const status = passed ? 'ok' : 'err';
+            log(`  ✓ raw=${raw ? 'yes' : 'no'} syn=${sv?1:0} pass=${passed?1:0} lat=${generation_seconds}s sim=${sim!=null?sim.toFixed(2):'—'} err=${evalResult.error||'none'}`, status);
+          } catch(e) {
+            log(`  ✗ ${e.message || e}`, 'err');
+            r.syntax_valid.push(0); r.passed_tests.push(0);
+            r.generation_seconds.push(null); r.structural_similarities.push(null);
+            r.instruction_compliance.push(0); r.error_types.push('api_error');
+          }
+          done++;
+          setP((done/total)*100, `${done} / ${total} — ${MODELS_MAP[mk].display} / ${v} / run ${run + 1}`);
+        }
+      }
+    }
+  }
+ 
+  setP(100, `Done — ${total} evaluations complete`);
+  isRunning = false;
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('expBtn').style.display = 'inline-block';
+  renderAll(models);
+}
+ 
+/* ─── render ─── */
+function renderAll(models) {
+  document.getElementById('summarySection').style.display = 'block';
+  document.getElementById('resultsSection').style.display = 'block';
+ 
+  const sg = document.getElementById('sg');
+  sg.innerHTML = '';
+  models.forEach(mk => {
+    const rows = Object.values(allResults[mk]||{});
+    const allSyn  = rows.flatMap(r=>r.syntax_valid);
+    const allPass = rows.flatMap(r=>r.passed_tests);
+    const allLat  = rows.flatMap(r=>r.generation_seconds);
+    const allSim  = rows.flatMap(r=>r.structural_similarities);
+    const d = MODELS_MAP[mk].display;
+    sg.innerHTML += `
+      <div class="scard"><div class="model-tag">${MODELS_MAP[mk].label}</div><div class="metric-val">${pct(allSyn)}</div><div class="metric-name">syntax success</div></div>
+      <div class="scard"><div class="model-tag">${MODELS_MAP[mk].label}</div><div class="metric-val">${pct(allPass)}</div><div class="metric-name">task accuracy</div></div>
+      <div class="scard"><div class="model-tag">${MODELS_MAP[mk].label}</div><div class="metric-val">${fmtL(allLat)}</div><div class="metric-name">avg latency</div></div>
+      <div class="scard"><div class="model-tag">${MODELS_MAP[mk].label}</div><div class="metric-val">${fmtS(allSim)}</div><div class="metric-name">struct similarity</div></div>`;
+  });
+ 
+  const tabsRow = document.getElementById('tabsRow');
+  tabsRow.innerHTML = '';
+  models.forEach((mk, i) => {
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (i===0?' active':'');
+    tab.textContent = MODELS_MAP[mk].display;
+    tab.onclick = () => {
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      renderTable(mk);
+    };
+    tabsRow.appendChild(tab);
+  });
+  renderTable(models[0]);
+}
+ 
+function renderTable(mk) {
+  const data = allResults[mk];
+  if (!data) return;
+ 
+  let html = `<table>
+    <thead><tr>
+      <th style="width:140px">Variation</th>
+      <th>Syntax Output<br>Success Rate</th>
+      <th>Structural<br>Similarity Score</th>
+      <th>Generation<br>Latency (avg)</th>
+      <th>Task Accuracy /<br>Test Pass Rate</th>
+    </tr></thead><tbody>`;
+ 
+  VARIATIONS.forEach(v => {
+    const r = data[v];
+    if (!r || !r.syntax_valid.length) {
+      html += `<tr><td class="vcol">${v}</td><td colspan="4" style="font-size:11px;color:var(--text3);text-align:center">not run</td></tr>`;
+      return;
+    }
+    const synA  = avg(r.syntax_valid);
+    const passA = avg(r.passed_tests);
+    const simA  = avg(r.structural_similarities);
+    const latA  = avg(r.generation_seconds);
+ 
+    const synStr  = synA  != null ? (synA*100).toFixed(0)+'%' : '—';
+    const passStr = passA != null ? (passA*100).toFixed(0)+'%' : '—';
+    const simStr  = simA  != null ? (simA*100).toFixed(0)+'%' : '—';
+    const latStr  = latA  != null ? latA.toFixed(2)+'s' : '—';
+    const simNum  = simA  != null ? (simA*100).toFixed(0) : 0;
+ 
+    const synBadge  = synA  >= 0.8 ? 'g' : synA  >= 0.5 ? 'a' : 'r';
+    const passBadge = passA >= 0.7 ? 'g' : passA >= 0.4 ? 'a' : 'r';
+    const vLabel = v.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+ 
+    html += `<tr>
+      <td class="vcol">${vLabel}</td>
+      <td><span class="badge ${synBadge}">${synStr}</span></td>
+      <td>
+        <div class="barwrap">
+          <div class="barbg"><div class="barfg" style="width:${simNum}%"></div></div>
+          <span class="barval">${simStr}</span>
+        </div>
+      </td>
+      <td><span class="latval">${latStr}</span></td>
+      <td><span class="badge ${passBadge}">${passStr}</span></td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+ 
+  const ic = pct(Object.values(data).flatMap(r=>r.instruction_compliance));
+  html += `<div class="compliance-row">
+    <span><strong>Instruction compliance</strong> (avg across variations): ${ic}</span>
+    <span><strong>Model:</strong> ${MODELS_MAP[mk].label}</span>
+    <span><strong>Runs per prompt:</strong> ${Object.values(data)[0]?.syntax_valid.length / PROBLEMS.slice(0, parseInt(document.getElementById('numP').value)).length || '—'}</span>
+  </div>
+  <div class="footnote">
+    <strong>Metric definitions (mirrors evaluation.py):</strong>
+    Syntax: <code>ast.parse()</code> simulation (def + return + balanced brackets) ·
+    Structural similarity: <code>1 - |feat_delta| / max(feat, ref, 1)</code> averaged over 7 AST features vs reference solution ·
+    Latency: wall-clock <code>generation_seconds</code> ·
+    Accuracy: <code>exec()</code> + <code>check(candidate)</code> pass/fail ·
+    Green ≥ 80% / 70% · Amber ≥ 50% / 40% · Red below
+  </div>`;
+ 
+  document.getElementById('tbl').innerHTML = html;
+}
+ 
+/* ─── export ─── */
+function doExport() {
+  let csv = 'model,variation_type,syntax_valid,structural_similarity,generation_seconds,passed_tests,instruction_compliance\n';
+  Object.keys(allResults).forEach(mk => {
+    VARIATIONS.forEach(v => {
+      const r = allResults[mk]?.[v];
+      if (!r || !r.syntax_valid.length) return;
+      csv += `"${MODELS_MAP[mk].label}","${v.replace(/_/g,' ')}",${avg(r.syntax_valid)?.toFixed(4)||''},${avg(r.structural_similarities)?.toFixed(4)||''},${avg(r.generation_seconds)?.toFixed(4)||''},${avg(r.passed_tests)?.toFixed(4)||''},${avg(r.instruction_compliance)?.toFixed(4)||''}\n`;
+    });
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = 'cs614_evaluation_results.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
