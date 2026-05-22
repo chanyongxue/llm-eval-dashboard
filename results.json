@@ -1,0 +1,29 @@
+{
+  "generated_at": null,
+  "models": ["meta", "openai", "alibaba"],
+  "variations": [
+    "baseline",
+    "concise",
+    "verbose",
+    "expert",
+    "academic",
+    "casual",
+    "production",
+    "no_examples",
+    "plain_text",
+    "negative_instruction"
+  ],
+  "problem_ids": [
+    "humaneval_000",
+    "humaneval_001",
+    "humaneval_002",
+    "humaneval_003",
+    "humaneval_004",
+    "humaneval_005",
+    "humaneval_006",
+    "humaneval_007",
+    "humaneval_008",
+    "humaneval_009"
+  ],
+  "entries": []
+}

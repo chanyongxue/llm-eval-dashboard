@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CS614 LLM Evaluation Dashboard</title>
+<style>
+  :root {
+    --bg: #0f0f11;
+    --bg2: #17171a;
+    --bg3: #1e1e22;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8e6e0;
+    --text2: #8b8984;
+    --text3: #5a5856;
+    --accent: #4f8ef7;
+    --accent2: #2d6dd4;
+    --green: #3ecf6e;
+    --amber: #f5a623;
+    --red: #e05252;
+    --green-bg: rgba(62,207,110,0.1);
+    --amber-bg: rgba(245,166,35,0.1);
+    --red-bg: rgba(224,82,82,0.1);
+    --radius: 8px;
+    --radius-lg: 12px;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.6}
+  body{min-height:100vh;padding:0}
+ 
+  /* layout */
+  .page{max-width:1100px;margin:0 auto;padding:2.5rem 2rem 4rem}
+ 
+  /* header */
+  .header{margin-bottom:2.5rem;border-bottom:0.5px solid var(--border);padding-bottom:1.5rem}
+  .header-top{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:.5rem}
+  .title{font-size:22px;font-weight:600;letter-spacing:-.3px;color:var(--text)}
+  .title span{color:var(--accent)}
+  .badge-group{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;border:0.5px solid var(--border2);color:var(--text2);background:var(--bg3)}
+  .subtitle{font-size:13px;color:var(--text2);max-width:600px}
+ 
+  /* controls */
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg)}
+  .controls label{font-size:12px;color:var(--text2);white-space:nowrap}
+  select{background:var(--bg3);color:var(--text);border:0.5px solid var(--border2);border-radius:var(--radius);padding:6px 10px;font-size:12px;font-family:var(--sans);cursor:pointer;outline:none}
+  select:focus{border-color:var(--accent)}
+  .sep{width:0.5px;height:22px;background:var(--border);margin:0 4px}
+  .btn{padding:7px 18px;font-size:12px;font-weight:500;border:0.5px solid var(--border2);border-radius:var(--radius);cursor:pointer;background:var(--bg3);color:var(--text);transition:all .15s;white-space:nowrap}
+  .btn:hover{background:var(--bg);border-color:var(--border2)}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.primary:hover{background:var(--accent2);border-color:var(--accent2)}
+  .btn.primary:disabled{background:var(--bg3);color:var(--text2);border-color:var(--border)}
+ 
+  /* progress */
+  #progSection{margin-bottom:1.5rem;display:none}
+  .pbar-wrap{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-bottom:6px}
+  .pbar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .2s ease}
+  .pbar-label{font-size:11px;color:var(--text3);margin-bottom:.75rem;font-family:var(--mono)}
+  .logbox{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-family:var(--mono);font-size:11px;color:var(--text3);max-height:110px;overflow-y:auto;white-space:pre-wrap;line-height:1.5}
+  .logbox .ok{color:var(--green)}
+  .logbox .err{color:var(--red)}
+ 
+  /* summary cards */
+  #summarySection{display:none;margin-bottom:1.5rem}
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .scard{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.1rem}
+  .scard .model-tag{font-size:10px;color:var(--text3);font-family:var(--mono);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scard .metric-val{font-size:24px;font-weight:600;color:var(--text);letter-spacing:-.5px;line-height:1.1}
+  .scard .metric-name{font-size:11px;color:var(--text2);margin-top:3px}
+ 
+  /* results table area */
+  #resultsSection{display:none}
+  .tabs{display:flex;gap:0;border-bottom:0.5px solid var(--border);margin-bottom:1.25rem}
+  .tab{padding:8px 16px;font-size:12px;cursor:pointer;color:var(--text2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;font-weight:500}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+ 
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead tr{background:var(--bg2)}
+  th{padding:9px 12px;text-align:left;font-weight:500;font-size:11px;color:var(--text2);border-bottom:0.5px solid var(--border);white-space:nowrap}
+  th:not(:first-child){text-align:center}
+  td{padding:8px 12px;border-bottom:0.5px solid var(--border);vertical-align:middle}
+  td:not(:first-child){text-align:center}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(255,255,255,.02)}
+  .vcol{font-weight:500;color:var(--text);font-size:12px;white-space:nowrap}
+ 
+  .badge{display:inline-block;padding:2px 9px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--mono)}
+  .badge.g{background:var(--green-bg);color:var(--green)}
+  .badge.a{background:var(--amber-bg);color:var(--amber)}
+  .badge.r{background:var(--red-bg);color:var(--red)}
+ 
+  .barwrap{display:flex;align-items:center;gap:6px;justify-content:center}
+  .barbg{width:50px;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;flex-shrink:0}
+  .barfg{height:100%;border-radius:2px;background:var(--accent)}
+  .barval{font-size:11px;color:var(--text2);font-family:var(--mono);min-width:30px;text-align:left}
+ 
+  .latval{font-family:var(--mono);font-size:12px;color:var(--text2)}
+ 
+  /* compliance row */
+  .compliance-row{margin-top:1rem;padding:.75rem 1rem;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text2);display:flex;gap:1.5rem;flex-wrap:wrap}
+  .compliance-row strong{color:var(--text)}
+ 
+  /* empty state */
+  #emptyState{padding:4rem 0;text-align:center;color:var(--text2)}
+  #emptyState h4{font-size:16px;font-weight:500;color:var(--text);margin-bottom:.5rem}
+  #emptyState p{font-size:13px;max-width:420px;margin:0 auto;line-height:1.6}
+ 
+  /* footer note */
+  .footnote{margin-top:1.5rem;font-size:11px;color:var(--text3);line-height:1.7;padding-top:1rem;border-top:0.5px solid var(--border)}
+  .footnote code{font-family:var(--mono);color:var(--text2);background:var(--bg3);padding:1px 5px;border-radius:3px}
+ 
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .running-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease-in-out infinite;vertical-align:middle;margin-right:6px}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="page">
+ 
+  <div class="header">
+    <div class="header-top">
+      <div class="title">CS614 <span>LLM Eval</span> Dashboard</div>
+      <div class="badge-group">
+        <span class="chip">llama-3.1-8b</span>
+        <span class="chip">qwen3-32b</span>
+        <span class="chip">gpt-oss-120b</span>
+        <span class="chip">HumanEval</span>
+      </div>
+    </div>
+    <p class="subtitle">Mirrors <code style="font-family:monospace;font-size:12px;color:#8b8984">generate_evaluation.py</code> — AST syntax validation · structural similarity vs reference · generation latency · test pass/fail across 10 prompt variations</p>
+  </div>
+ 
+  <div class="controls">
+    <label>Problems</label>
+    <select id="numP">
+      <option value="3">3 (fast)</option>
+      <option value="5" selected>5 (default)</option>
+      <option value="10">10 (full)</option>
+    </select>
+    <label>Runs / prompt</label>
+    <select id="numR">
+      <option value="1">1</option>
+      <option value="2" selected>2</option>
+    </select>
+    <div class="sep"></div>
+    <label>Model</label>
+    <select id="mdl">
+      <option value="meta">llama-3.1-8b-instant</option>
+      <option value="openai">openai/gpt-oss-120b</option>
+      <option value="alibaba">qwen/qwen3-32b</option>
+      <option value="all">All 3 models</option>
+    </select>
+    <div class="sep"></div>
+    <button class="btn primary" id="runBtn" onclick="startEval()">Run evaluation</button>
+    <button class="btn" id="expBtn" style="display:none" onclick="doExport()">Export CSV</button>
+  </div>
+ 
+  <div id="progSection">
+    <div class="pbar-wrap"><div class="pbar-fill" id="pf" style="width:0%"></div></div>
+    <div class="pbar-label" id="pl">Initializing…</div>
+    <div class="logbox" id="log"></div>
+  </div>
+ 
+  <div id="summarySection">
+    <div class="summary-grid" id="sg"></div>
+  </div>
+ 
+  <div id="resultsSection">
+    <div class="tabs" id="tabsRow"></div>
+    <div id="tbl"></div>
+  </div>
+ 
+  <div id="emptyState">
+    <h4>Ready to load results</h4>
+    <p>Run <code>generate_evaluation.py</code> first to create <code>results.json</code>, then click <strong>Run evaluation</strong> to load the dashboard from that file.</p>
+  </div>
+ 
+</div>
+ 
+<script src="dashboard.js"></script>
+</body>
+</html>
