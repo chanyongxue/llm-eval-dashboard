@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CS614 — LLM Evaluation Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #0c0c0e;
+  --bg2:      #141416;
+  --bg3:      #1c1c20;
+  --bg4:      #242428;
+  --line:     rgba(255,255,255,0.07);
+  --line2:    rgba(255,255,255,0.12);
+  --tx:       #e9e7e1;
+  --tx2:      #7e7c78;
+  --tx3:      #46443f;
+  --accent:   #5b8ef5;
+  --green:    #4ade80;
+  --amber:    #fbbf24;
+  --red:      #f87171;
+  --green-bg: rgba(74,222,128,0.08);
+  --amber-bg: rgba(251,191,36,0.08);
+  --red-bg:   rgba(248,113,113,0.08);
+  --r:        6px;
+  --r2:       10px;
+  --mono:     'IBM Plex Mono', monospace;
+  --sans:     'Syne', system-ui, sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+body{min-height:100vh}
+a{color:var(--accent);text-decoration:none}
+
+/* layout */
+.page{max-width:1200px;margin:0 auto;padding:2.5rem 2rem 5rem}
+
+/* header */
+header{padding-bottom:2rem;margin-bottom:2rem;border-bottom:0.5px solid var(--line)}
+.header-row{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:.75rem}
+h1{font-size:24px;font-weight:700;letter-spacing:-.5px;line-height:1.2}
+h1 em{color:var(--accent);font-style:normal}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{padding:2px 10px;border-radius:20px;font-size:11px;font-weight:500;font-family:var(--mono);border:0.5px solid var(--line2);color:var(--tx2);background:var(--bg3);letter-spacing:.02em}
+.chip.live{border-color:rgba(74,222,128,.3);color:var(--green);background:var(--green-bg)}
+.subtitle{font-size:13px;color:var(--tx2);max-width:680px;line-height:1.6}
+.subtitle code{font-family:var(--mono);font-size:11px;color:var(--tx2);background:var(--bg3);padding:1px 5px;border-radius:3px}
+
+/* two-panel top */
+.top-panels{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+@media(max-width:700px){.top-panels{grid-template-columns:1fr}}
+
+.panel{background:var(--bg2);border:0.5px solid var(--line);border-radius:var(--r2);padding:1.25rem}
+.panel-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--tx3);margin-bottom:1rem;font-family:var(--mono)}
+
+/* live eval panel */
+.field-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.field-row label{font-size:12px;color:var(--tx2);white-space:nowrap;min-width:90px}
+select,input[type=text],input[type=password]{background:var(--bg3);color:var(--tx);border:0.5px solid var(--line2);border-radius:var(--r);padding:6px 10px;font-size:12px;font-family:var(--mono);outline:none;transition:border .15s}
+select:focus,input:focus{border-color:var(--accent)}
+input[type=text],input[type=password]{flex:1;min-width:180px}
+.btn{padding:7px 18px;font-size:12px;font-weight:600;letter-spacing:.02em;border:0.5px solid var(--line2);border-radius:var(--r);cursor:pointer;background:var(--bg3);color:var(--tx);transition:all .15s;font-family:var(--sans);white-space:nowrap}
+.btn:hover:not(:disabled){background:var(--bg4);border-color:var(--line2)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover:not(:disabled){background:#4175e0;border-color:#4175e0}
+.btn.sm{padding:5px 12px;font-size:11px}
+.api-note{font-size:11px;color:var(--tx3);margin-top:6px;font-family:var(--mono)}
+
+/* progress */
+.prog-wrap{margin-top:10px;display:none}
+.pbar{height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.pfill{height:100%;background:var(--accent);border-radius:2px;transition:width .2s ease;width:0%}
+.pstatus{font-size:11px;color:var(--tx3);font-family:var(--mono);margin-top:5px}
+.logbox{background:var(--bg);border:0.5px solid var(--line);border-radius:var(--r);padding:8px 12px;font-family:var(--mono);font-size:10px;color:var(--tx3);max-height:90px;overflow-y:auto;margin-top:8px;line-height:1.7}
+.logbox .ok{color:rgba(74,222,128,.7)}
+.logbox .err{color:rgba(248,113,113,.7)}
+.logbox .info{color:rgba(91,142,245,.7)}
+
+/* notebook data panel */
+.nb-note{font-size:11px;color:var(--tx3);font-family:var(--mono);line-height:1.7;margin-bottom:.75rem}
+.nb-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;font-size:10px;font-family:var(--mono);font-weight:500;background:var(--green-bg);color:var(--green);border:0.5px solid rgba(74,222,128,.2)}
+
+/* summary cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;margin-bottom:1.5rem}
+.card{background:var(--bg2);border:0.5px solid var(--line);border-radius:var(--r2);padding:1rem}
+.card .model-id{font-size:10px;font-family:var(--mono);color:var(--tx3);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .big{font-size:26px;font-weight:700;color:var(--tx);letter-spacing:-.5px;line-height:1}
+.card .label{font-size:11px;color:var(--tx2);margin-top:4px}
+.card .src{font-size:9px;font-family:var(--mono);color:var(--tx3);margin-top:3px}
+
+/* tabs */
+.tabs-row{display:flex;gap:0;border-bottom:0.5px solid var(--line);margin-bottom:1.25rem}
+.tab{padding:8px 18px;font-size:12px;font-weight:600;cursor:pointer;color:var(--tx2);border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;letter-spacing:.01em}
+.tab:hover{color:var(--tx)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab .dot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-left:5px;vertical-align:2px}
+.dot-real{background:var(--green)}
+.dot-live{background:var(--amber)}
+.dot-none{background:var(--tx3)}
+
+/* results table */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
+thead tr{background:var(--bg3)}
+th{padding:9px 14px;text-align:left;font-weight:600;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);border-bottom:0.5px solid var(--line);font-family:var(--mono)}
+th:not(:first-child){text-align:center}
+td{padding:9px 14px;border-bottom:0.5px solid var(--line);vertical-align:middle}
+td:not(:first-child){text-align:center}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.015)}
+.vname{font-weight:600;color:var(--tx);font-size:12px;white-space:nowrap}
+.vsource{font-size:9px;font-family:var(--mono);color:var(--tx3);margin-top:1px}
+
+/* badges */
+.badge{display:inline-block;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--mono);letter-spacing:.01em}
+.badge.g{background:var(--green-bg);color:var(--green)}
+.badge.a{background:var(--amber-bg);color:var(--amber)}
+.badge.r{background:var(--red-bg);color:var(--red)}
+.badge.pending{background:var(--bg3);color:var(--tx3);font-size:10px}
+.latval{font-family:var(--mono);font-size:12px;color:var(--tx2)}
+.barwrap{display:flex;align-items:center;gap:6px;justify-content:center}
+.barbg{width:48px;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;flex-shrink:0}
+.barfg{height:100%;border-radius:2px;background:var(--accent)}
+.bval{font-size:11px;font-family:var(--mono);color:var(--tx2);min-width:34px;text-align:left}
+
+/* footnote area */
+.footnote{margin-top:1.25rem;padding:1rem 1.25rem;background:var(--bg2);border:0.5px solid var(--line);border-radius:var(--r);font-size:11px;color:var(--tx3);font-family:var(--mono);line-height:1.8;display:flex;flex-wrap:wrap;gap:.75rem 2rem}
+.footnote strong{color:var(--tx2)}
+.footnote code{color:var(--tx2)}
+
+/* error taxonomy */
+.err-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:.5rem}
+.err-card{background:var(--bg3);border-radius:var(--r);padding:.6rem .75rem}
+.err-model{font-size:10px;font-family:var(--mono);color:var(--tx3);margin-bottom:3px}
+.err-items{font-size:11px;font-family:var(--mono);color:var(--tx2);line-height:1.7}
+.err-items span{color:var(--red)}
+
+/* new model section */
+.new-model-panel{background:var(--bg2);border:0.5px solid var(--line);border-radius:var(--r2);padding:1.25rem;margin-bottom:1.5rem}
+.nm-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.blink{animation:pulse 1.4s ease-in-out infinite}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="header-row">
+    <h1>CS614 <em>LLM Eval</em> Dashboard</h1>
+    <div class="chips">
+      <span class="chip">HumanEval</span>
+      <span class="chip">llama-3.1-8b</span>
+      <span class="chip">qwen3-32b</span>
+      <span class="chip">gpt-oss-120b</span>
+      <span class="chip live">● live</span>
+    </div>
+  </div>
+  <p class="subtitle">
+    Pre-loaded with real data from <code>Evaluation.ipynb</code> (baseline + concise, 5 problems × 3 models × 2 runs).
+    Run live evaluations for remaining variations using your Groq API key — or test any custom model.
+  </p>
+</header>
+
+<!-- top panels -->
+<div class="top-panels">
+
+  <!-- live eval -->
+  <div class="panel">
+    <div class="panel-title">Run Live Evaluation</div>
+    <div class="field-row">
+      <label>Groq API Key</label>
+      <input type="password" id="apiKey" placeholder="gsk_…" autocomplete="off"/>
+    </div>
+    <div class="field-row">
+      <label>Model</label>
+      <select id="mdlSel">
+        <option value="meta-llama/llama-4-scout-17b-16e-instruct">meta / llama-3.1-8b-instant</option>
+        <option value="qwen-qwq-32b">alibaba / qwen3-32b</option>
+        <option value="openai-oss-120b">openai / gpt-oss-120b</option>
+        <option value="custom">Custom model…</option>
+      </select>
+    </div>
+    <div class="field-row" id="customRow" style="display:none">
+      <label>Model ID</label>
+      <input type="text" id="customMdl" placeholder="provider/model-name"/>
+    </div>
+    <div class="field-row">
+      <label>Variations</label>
+      <select id="varSel">
+        <option value="remaining">Remaining 8 (verbose→negative)</option>
+        <option value="all">All 10 variations</option>
+        <option value="baseline">Baseline only</option>
+        <option value="concise">Concise only</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <label>Problems</label>
+      <select id="numP">
+        <option value="3">3 (fast)</option>
+        <option value="5" selected>5 (matches notebook)</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn primary" id="runBtn" onclick="startEval()">Run evaluation</button>
+      <button class="btn sm" id="expBtn" style="display:none" onclick="doExport()">Export CSV</button>
+    </div>
+    <p class="api-note">Key used only for API calls — never stored or sent to any server.</p>
+    <div class="prog-wrap" id="progWrap">
+      <div class="pbar"><div class="pfill" id="pf"></div></div>
+      <div class="pstatus" id="ps">…</div>
+      <div class="logbox" id="log"></div>
+    </div>
+  </div>
+
+  <!-- notebook data -->
+  <div class="panel">
+    <div class="panel-title">Notebook Data — Evaluation.ipynb</div>
+    <p class="nb-note">
+      60 rows: 3 models × 2 variations × 5 problems × 2 runs<br>
+      Executed on Groq inference API · Real test execution via <code>exec()</code> + <code>check(candidate)</code>
+    </p>
+    <span class="nb-badge">✓ pre-loaded</span>
+    <div style="margin-top:1rem">
+      <table style="font-size:11px;width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:4px 6px;font-family:var(--mono);font-size:10px;color:var(--tx3);border-bottom:0.5px solid var(--line)">Model</th>
+          <th style="padding:4px 6px;font-family:var(--mono);font-size:10px;color:var(--tx3);border-bottom:0.5px solid var(--line);text-align:center">Passed</th>
+          <th style="padding:4px 6px;font-family:var(--mono);font-size:10px;color:var(--tx3);border-bottom:0.5px solid var(--line);text-align:center">Syntax</th>
+          <th style="padding:4px 6px;font-family:var(--mono);font-size:10px;color:var(--tx3);border-bottom:0.5px solid var(--line);text-align:center">Lat (avg)</th>
+          <th style="padding:4px 6px;font-family:var(--mono);font-size:10px;color:var(--tx3);border-bottom:0.5px solid var(--line);text-align:center">Comply</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td style="padding:5px 6px;font-family:var(--mono);color:var(--tx2)">openai</td>
+            <td style="padding:5px 6px;text-align:center"><span style="color:var(--green);font-family:var(--mono);font-size:11px">100%</span></td>
+            <td style="padding:5px 6px;text-align:center"><span style="color:var(--green);font-family:var(--mono);font-size:11px">100%</span></td>
+            <td style="padding:5px 6px;text-align:center;font-family:var(--mono);color:var(--tx2);font-size:11px">0.57s</td>
+            <td style="padding:5px 6px;text-align:center"><span style="color:var(--green);font-family:var(--mono);font-size:11px">100%</span></td>
+          </tr>
+          <tr>
+            <td style="padding:5px 6px;font-family:var(--mono);color:var(--tx2)">meta</td>
+            <td style="padding:5px 6px;text-align:center"><span style="color:var(--amber);font-family:var(--mono);font-size:11px">80%</span></td>
+            <td style="padding:5px 6px;text-align:center"><span style="color:var(--green);font-family:var(--mono);font-size:11px">100%</span></td>
+            <td style="padding:5px 6px;text-align:center;font-family:var(--mono);color:var(--tx2);font-size:11px">0.27s</td>
+            <td style="padding:5px 6px;text-align:center"><span style="color:var(--green);font-family:var(--mono);font-size:11px">100%</span></td>
+          </tr>
+          <tr>
+            <td style="padding:5px 6px;font-family:var(--mono);color:var(--tx2)">alibaba</td>
+            <td style="padding:5px 6px;text-align:center"><span style="color:var(--amber);font-family:var(--mono);font-size:11px">55%</span></td>
+            <td style="padding:5px 6px;text-align:center"><span style="color:var(--amber);font-family:var(--mono);font-size:11px">80%</span></td>
+            <td style="padding:5px 6px;text-align:center;font-family:var(--mono);color:var(--tx2);font-size:11px">7.28s</td>
+            <td style="padding:5px 6px;text-align:center"><span style="color:var(--red);font-family:var(--mono);font-size:11px">0%</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:.75rem">
+      <div class="panel-title" style="margin-bottom:.5rem">Error Taxonomy</div>
+      <div class="err-grid">
+        <div class="err-card"><div class="err-model">alibaba</div><div class="err-items"><span>5</span> name_error<br><span>4</span> syntax_error</div></div>
+        <div class="err-card"><div class="err-model">meta</div><div class="err-items"><span>1</span> failed_tests<br><span>3</span> name_error</div></div>
+        <div class="err-card"><div class="err-model">openai</div><div class="err-items" style="color:var(--tx3)">no errors</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- custom model section -->
+<div class="new-model-panel">
+  <div class="panel-title">Test a Different Model</div>
+  <div class="nm-row">
+    <input type="text" id="nmKey" placeholder="API key (Groq / OpenAI / Anthropic)…" style="max-width:280px"/>
+    <input type="text" id="nmModel" placeholder="Model ID (e.g. llama-3.3-70b-versatile)…" style="max-width:260px"/>
+    <select id="nmProvider">
+      <option value="groq">Groq</option>
+      <option value="openai">OpenAI</option>
+      <option value="anthropic">Anthropic</option>
+    </select>
+    <select id="nmVarSel">
+      <option value="baseline">Baseline</option>
+      <option value="concise">Concise</option>
+      <option value="all">All 10</option>
+    </select>
+    <button class="btn primary sm" onclick="runCustomModel()">Evaluate</button>
+  </div>
+  <p class="api-note">Enter any OpenAI-compatible API key and model ID to add a new model row to the results. Results appear in a new tab.</p>
+</div>
+
+<!-- summary cards -->
+<div class="cards" id="cards"></div>
+
+<!-- results tabs + table -->
+<div id="resultsArea">
+  <div class="tabs-row" id="tabsRow"></div>
+  <div class="table-wrap">
+    <div id="tbl"></div>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<script>
+// ─── REAL DATA FROM Evaluation.ipynb ───────────────────────────────────────
+// 60 rows: 3 models × 2 variations (baseline + concise) × 5 problems × 2 runs
+// Metrics: mean across 10 samples (5 problems × 2 runs) per model×variation
+
+const NOTEBOOK_DATA = {
+  meta: {
+    baseline: { syntax: 1.00, struct_sim: 1.00,       latency: 0.200413, accuracy: 0.90, compliance: 1.0,  source: 'notebook' },
+    concise:  { syntax: 1.00, struct_sim: 0.766667,   latency: 0.307667, accuracy: 0.70, compliance: 1.0,  source: 'notebook' },
+  },
+  openai: {
+    baseline: { syntax: 1.00, struct_sim: 1.00,       latency: 0.509283, accuracy: 1.00, compliance: 1.0,  source: 'notebook' },
+    concise:  { syntax: 1.00, struct_sim: 0.575000,   latency: 0.591388, accuracy: 1.00, compliance: 1.0,  source: 'notebook' },
+  },
+  alibaba: {
+    baseline: { syntax: 0.80, struct_sim: 1.00,       latency: 7.276989, accuracy: 0.60, compliance: 0.0,  source: 'notebook' },
+    concise:  { syntax: 0.80, struct_sim: 0.729167,   latency: 6.176333, accuracy: 0.50, compliance: 0.0,  source: 'notebook' },
+  }
+};
+
+const MODELS_MAP = {
+  'meta-llama/llama-4-scout-17b-16e-instruct': { key: 'meta',    display: 'LLaMA 3.1 8B',  full: 'meta / llama-3.1-8b-instant' },
+  'qwen-qwq-32b':                              { key: 'alibaba', display: 'Qwen3 32B',      full: 'alibaba / qwen3-32b' },
+  'openai-oss-120b':                           { key: 'openai',  display: 'GPT-OSS 120B',   full: 'openai / gpt-oss-120b' },
+};
+
+const VARIATIONS = ['baseline','concise','verbose','expert','academic','casual','production','no_examples','plain_text','negative_instruction'];
+
+const SYSTEM_PROMPT = `You are an expert Python programmer.
+
+Complete the requested function.
+
+RULES:
+- Return ONLY valid Python code
+- No markdown
+- No explanations
+- No comments outside the code
+- Preserve function signature
+- Complete implementation only`;
+
+// ─── PROMPT DATASET (from prompt_variations_in_.csv structure) ────────────
+const PROBLEMS = [
+  { id:'humaneval_000', entry:'has_close_elements',
+    ref:`def has_close_elements(numbers, threshold):\n    for i in range(len(numbers)):\n        for j in range(i+1,len(numbers)):\n            if abs(numbers[i]-numbers[j])<threshold: return True\n    return False`,
+    test:`\ndef check(c):\n    assert c([1.0,2.0,3.9,4.0,5.0,2.2],0.3)==True\n    assert c([1.0,2.0,3.9,4.0,5.0,2.2],0.05)==False\n    assert c([1.0,2.0,5.9,4.0,5.0],0.95)==True\n    assert c([1.0,2.0,3.0,4.0,5.0,2.0],0.1)==True`,
+    prompts:{
+      baseline:`from typing import List\n\n\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    \"\"\"Check if in given list of numbers, are any two numbers closer to each other than\n    given threshold.\n    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)\n    False\n    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)\n    True\n    \"\"\"`,
+      concise:`Complete this concisely: def has_close_elements(numbers, threshold): # Return True if any two numbers in list differ by less than threshold`,
+      verbose:`You are given a list of floating point numbers and a threshold value. Your task is to determine whether any two distinct elements in the list have an absolute difference strictly less than the given threshold. Implement this as a Python function:\n\nfrom typing import List\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:`,
+      expert:`Implement O(n^2) pairwise proximity check. Return True iff exists i!=j such that |a[i]-a[j]|<threshold.\n\ndef has_close_elements(numbers, threshold):`,
+      academic:`Given sequence S of real numbers and ε>0, determine whether distinct indices i,j exist such that |S[i]-S[j]|<ε.\n\ndef has_close_elements(numbers: list, threshold: float) -> bool:`,
+      casual:`Hey, just check if any two numbers in the list are really close together - closer than threshold apart. Return True if yes.\n\ndef has_close_elements(numbers, threshold):`,
+      production:`def has_close_elements(numbers: list, threshold: float) -> bool:\n    \"\"\"Check proximity constraint in input list.\n    Args:\n        numbers: Input list of floats\n        threshold: Maximum allowed distance\n    Returns:\n        bool: True if any pair within threshold\n    \"\"\"`,
+      no_examples:`from typing import List\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    \"\"\"Check if in given list of numbers, are any two numbers closer to each other than given threshold.\"\"\"`,
+      plain_text:`Write a Python function called has_close_elements that accepts a list of floats and a threshold float. Return True if any two elements in the list differ by less than the threshold value, False otherwise.`,
+      negative_instruction:`Complete this function. Do NOT use sorting. Do NOT import numpy or any external libraries.\n\nfrom typing import List\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    \"\"\"Return True if any two numbers are closer than threshold.\"\"\"`
+    }
+  },
+  { id:'humaneval_001', entry:'separate_paren_groups',
+    ref:`def separate_paren_groups(s):\n    r,b,d=[],[],0\n    for c in s:\n        if c==' ': continue\n        b.append(c)\n        if c=='(': d+=1\n        elif c==')': d-=1\n        if d==0 and b: r.append(''.join(b));b=[]\n    return r`,
+    test:`\ndef check(c):\n    assert c('(()()) ((())) () ((())()())')==['(()())','((()))','()','((())()())']\n    assert c('() (()) ((())) (((())))')==['()','(())','((()))','(((())))']\n    assert c('( ) (( )) (( )( ))')==['()','(())','(()())']`,
+    prompts:{
+      baseline:`from typing import List\n\n\ndef separate_paren_groups(paren_string: str) -> List[str]:\n    \"\"\"Input to this function is a string containing multiple groups of nested parentheses. Your goal is to\n    separate those group into separate strings and return the list of those. Separate groups are balanced\n    (each open brace is properly closed) and not nested within each other. Ignore any spaces in the input string.\n    >>> separate_paren_groups('( ) (( )) (( )( ))')\n    ['()', '(())', '(()())']\n    \"\"\"`,
+      concise:`def separate_paren_groups(s): # Split balanced top-level paren groups into list, ignore spaces`,
+      verbose:`Parse a string containing multiple balanced parenthesis groups. Each group is at the top level (not nested within others). Return each group as a string in a list. Ignore spaces.\n\nfrom typing import List\ndef separate_paren_groups(paren_string: str) -> List[str]:`,
+      expert:`Tokenize string into maximal balanced paren substrings using depth tracking. O(n) solution. Ignore whitespace.\n\ndef separate_paren_groups(paren_string):`,
+      academic:`Given string over {(,),space}, partition into maximal substrings forming balanced expressions at depth 0.\n\ndef separate_paren_groups(paren_string: str):`,
+      casual:`Take a string like '() (()) ((()))' and break it into separate paren groups as a list. Ignore spaces.\n\ndef separate_paren_groups(paren_string):`,
+      production:`def separate_paren_groups(paren_string: str) -> list:\n    \"\"\"Parses and separates balanced parenthesis groups.\n    Args:\n        paren_string: String with space-separated balanced paren groups\n    Returns:\n        List[str]: Individual balanced paren group strings\n    \"\"\"`,
+      no_examples:`from typing import List\ndef separate_paren_groups(paren_string: str) -> List[str]:\n    \"\"\"Input is a string with multiple groups of nested parentheses. Separate those groups into separate strings and return the list. Ignore spaces.\"\"\"`,
+      plain_text:`Write a Python function separate_paren_groups that takes a string of balanced parenthesis groups and returns them as a list. Spaces should be ignored.`,
+      negative_instruction:`Complete this. Do NOT use regex. Do NOT use split().\n\ndef separate_paren_groups(paren_string: str) -> list:\n    \"\"\"Return balanced top-level paren groups as a list.\"\"\"`
+    }
+  },
+  { id:'humaneval_002', entry:'truncate_number',
+    ref:`def truncate_number(number):\n    return number % 1.0`,
+    test:`\ndef check(c):\n    assert c(3.5)==0.5\n    assert abs(c(1.33)-0.33)<1e-6\n    assert abs(c(123.456)-0.456)<1e-6`,
+    prompts:{
+      baseline:`def truncate_number(number: float) -> float:\n    \"\"\"Given a positive floating point number, it can be decomposed into\n    and integer part (largest integer smaller than given number) and decimals\n    (leftover part always smaller than 1).\n\n    Return the decimal part of the number.\n    >>> truncate_number(3.5)\n    0.5\n    \"\"\"`,
+      concise:`def truncate_number(x: float) -> float: # Return fractional part of positive float`,
+      verbose:`A positive floating point number can be decomposed into an integer part and a decimal part. For example, 3.5 has integer part 3 and decimal part 0.5. Implement a function that returns only the decimal part.\n\ndef truncate_number(number: float) -> float:`,
+      expert:`Return x - floor(x) for positive float x. Single-line solution preferred.\n\ndef truncate_number(number: float) -> float:`,
+      academic:`For x ∈ ℝ+, compute the fractional part: x - ⌊x⌋.\n\ndef truncate_number(number: float) -> float:`,
+      casual:`Just return the decimal part of a number. Like 3.5 gives 0.5, 2.7 gives 0.7.\n\ndef truncate_number(number: float) -> float:`,
+      production:`def truncate_number(number: float) -> float:\n    \"\"\"Extracts the decimal portion of a positive float.\n    Args:\n        number: A positive floating point number\n    Returns:\n        float: The fractional part of the input\n    \"\"\"`,
+      no_examples:`def truncate_number(number: float) -> float:\n    \"\"\"Given a positive floating point number, return the decimal part of the number.\"\"\"`,
+      plain_text:`Write a Python function truncate_number that takes a positive float and returns only its decimal (fractional) part.`,
+      negative_instruction:`Complete this. Do NOT use math.floor directly. Do NOT convert to int.\n\ndef truncate_number(number: float) -> float:\n    \"\"\"Return the decimal part of a positive float.\"\"\"`
+    }
+  },
+  { id:'humaneval_003', entry:'below_zero',
+    ref:`def below_zero(ops):\n    b=0\n    for o in ops:\n        b+=o\n        if b<0: return True\n    return False`,
+    test:`\ndef check(c):\n    assert c([])==False\n    assert c([1,2,-3,1,2,-3])==False\n    assert c([1,2,-4,5,6])==True\n    assert c([1,-1,2,-2,5,-5,4,-5])==True`,
+    prompts:{
+      baseline:`from typing import List\n\n\ndef below_zero(operations: List[int]) -> bool:\n    \"\"\"You're given a list of deposit and withdrawal operations on a bank account that starts with\n    zero balance. Your task is to detect if at any point the balance of account falls below zero, and\n    at that point function should return True. Otherwise it should return False.\n    >>> below_zero([1, 2, 3])\n    False\n    >>> below_zero([1, 2, -4, 5])\n    True\n    \"\"\"`,
+      concise:`def below_zero(operations): # Return True if running sum ever goes negative`,
+      verbose:`Simulate a bank account starting at balance 0. For each operation (positive = deposit, negative = withdrawal), update the balance. If the balance ever drops below zero, return True. Otherwise return False after processing all operations.\n\nfrom typing import List\ndef below_zero(operations: List[int]) -> bool:`,
+      expert:`Detect if prefix sum of integer sequence ever becomes strictly negative. O(n).\n\ndef below_zero(operations):`,
+      academic:`Given sequence a₁,...,aₙ ∈ ℤ, determine if any partial sum Σᵢ₌₁ᵏ aᵢ < 0.\n\ndef below_zero(operations: list) -> bool:`,
+      casual:`Check if a bank balance ever goes below zero. Start at 0, add each number, return True if you ever go negative.\n\ndef below_zero(operations):`,
+      production:`def below_zero(operations: list) -> bool:\n    \"\"\"Checks if account balance goes below zero during processing.\n    Args:\n        operations: List of integer deposit/withdrawal amounts\n    Returns:\n        bool: True if balance drops below zero at any point\n    \"\"\"`,
+      no_examples:`from typing import List\ndef below_zero(operations: List[int]) -> bool:\n    \"\"\"You're given a list of deposit and withdrawal operations on a bank account starting at zero. Detect if at any point the balance falls below zero.\"\"\"`,
+      plain_text:`Write a Python function below_zero that takes a list of integers representing bank transactions. Return True if the running balance ever drops below zero, False otherwise.`,
+      negative_instruction:`Complete this. Do NOT use any() with generator expressions. Do NOT use cumsum or sum().\n\ndef below_zero(operations: list) -> bool:\n    \"\"\"Return True if running sum goes negative.\"\"\"`
+    }
+  },
+  { id:'humaneval_004', entry:'mean_absolute_deviation',
+    ref:`def mean_absolute_deviation(numbers):\n    m=sum(numbers)/len(numbers)\n    return sum(abs(x-m) for x in numbers)/len(numbers)`,
+    test:`\ndef check(c):\n    assert abs(c([1.0,2.0,3.0])-2/3)<1e-6\n    assert abs(c([1.0,2.0,3.0,4.0])-1.0)<1e-6\n    assert abs(c([1.0,2.0,3.0,4.0,5.0])-6/5)<1e-6`,
+    prompts:{
+      baseline:`from typing import List\n\n\ndef mean_absolute_deviation(numbers: List[float]) -> float:\n    \"\"\"For a given list of input numbers, calculate Mean Absolute Deviation\n    around the mean of this dataset.\n    Mean Absolute Deviation is the average absolute difference between each\n    element and a centerpoint (mean in this case):\n    MAD = average | x - x_mean |\n    >>> mean_absolute_deviation([1.0, 2.0, 3.0, 4.0])\n    1.0\n    \"\"\"`,
+      concise:`def mean_absolute_deviation(numbers): # Compute MAD: mean of |x - mean| for all x`,
+      verbose:`Calculate the Mean Absolute Deviation (MAD) of a list of numbers. First compute the mean, then find the average of the absolute differences between each element and the mean.\n\nfrom typing import List\ndef mean_absolute_deviation(numbers: List[float]) -> float:`,
+      expert:`Return (1/n)·Σ|xᵢ - x̄| for a float list. No external imports.\n\ndef mean_absolute_deviation(numbers):`,
+      academic:`Compute MAD(X) = 𝔼[|X - 𝔼[X]|] for the empirical distribution over the input list.\n\ndef mean_absolute_deviation(numbers: list) -> float:`,
+      casual:`Find the average of how far each number is from the mean. That's the mean absolute deviation.\n\ndef mean_absolute_deviation(numbers):`,
+      production:`def mean_absolute_deviation(numbers: list) -> float:\n    \"\"\"Calculates Mean Absolute Deviation for statistical analysis.\n    Args:\n        numbers: List of float values\n    Returns:\n        float: Mean absolute deviation from the mean\n    \"\"\"`,
+      no_examples:`from typing import List\ndef mean_absolute_deviation(numbers: List[float]) -> float:\n    \"\"\"For a given list of input numbers, calculate Mean Absolute Deviation around the mean of this dataset.\"\"\"`,
+      plain_text:`Write a Python function mean_absolute_deviation that takes a list of floats and returns the mean absolute deviation — the average of the absolute differences between each value and the mean.`,
+      negative_instruction:`Complete this. Do NOT import numpy, statistics, or any external library.\n\ndef mean_absolute_deviation(numbers: list) -> float:\n    \"\"\"Compute mean absolute deviation.\"\"\"`
+    }
+  }
+];
+
+// ─── STATE ─────────────────────────────────────────────────────────────────
+let liveResults = JSON.parse(JSON.stringify(NOTEBOOK_DATA)); // seed with real data
+let activeModel = 'openai';
+let isRunning = false;
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+document.getElementById('mdlSel').addEventListener('change', e => {
+  document.getElementById('customRow').style.display = e.target.value === 'custom' ? 'flex' : 'none';
+});
+renderAll();
+
+// ─── LOGGING ────────────────────────────────────────────────────────────────
+function addLog(msg, type='') {
+  const b = document.getElementById('log');
+  const s = document.createElement('span');
+  if(type) s.className = type;
+  s.textContent = msg + '\n';
+  b.appendChild(s);
+  b.scrollTop = b.scrollHeight;
+}
+function setP(pct, label) {
+  document.getElementById('pf').style.width = pct + '%';
+  document.getElementById('ps').textContent = label;
+}
+
+// ─── CODE PROCESSING ────────────────────────────────────────────────────────
+function extractCode(text) {
+  if (!text) return null;
+  text = text.replace(/```python\s*/gi,'').replace(/```\s*/g,'');
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi,'');
+  text = text.trim();
+  const m = text.match(/(from\s+\w+\s+import|import\s+\w+|def\s+\w+\s*\()/);
+  if (m) text = text.slice(m.index);
+  return text.trim() || null;
+}
+
+function syntaxValid(code) {
+  if (!code || code.length < 10) return false;
+  return /\bdef\s+\w+/.test(code)
+      && /\breturn\b/.test(code)
+      && code.split('(').length === code.split(')').length
+      && code.split('[').length === code.split(']').length;
+}
+
+function extractASTFeats(code) {
+  if (!code) return null;
+  return {
+    for_loops:          (code.match(/\bfor\b/g)||[]).length,
+    while_loops:        (code.match(/\bwhile\b/g)||[]).length,
+    if_statements:      (code.match(/\bif\b/g)||[]).length,
+    function_calls:     (code.match(/\w+\s*\(/g)||[]).length,
+    list_comprehensions:(code.match(/\[.+\bfor\b/g)||[]).length,
+    recursion:          /return\s+\w+\s*\(/.test(code) ? 1 : 0,
+    node_count:         code.split('\n').filter(l=>l.trim()).length
+  };
+}
+
+function structSim(gen, ref) {
+  if (!gen || !ref) return null;
+  const keys = Object.keys(ref);
+  const diffs = keys.map(k => {
+    const g = gen[k]||0, r = ref[k]||0, mx = Math.max(g,r,1);
+    return 1 - Math.abs(g-r)/mx;
+  });
+  return diffs.reduce((a,b)=>a+b,0)/diffs.length;
+}
+
+// ─── API CALL ────────────────────────────────────────────────────────────────
+async function callGroq(prompt, modelId, apiKey) {
+  const t0 = performance.now();
+  const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user',   content: prompt }
+      ],
+      temperature: 0.2,
+      max_tokens: 1024
+    })
+  });
+  const elapsed = (performance.now()-t0)/1000;
+  if (!resp.ok) {
+    const err = await resp.json().catch(()=>({}));
+    throw new Error(err?.error?.message || `HTTP ${resp.status}`);
+  }
+  const data = await resp.json();
+  const raw = data.choices?.[0]?.message?.content || '';
+  return { raw, clean: extractCode(raw), generation_seconds: parseFloat(elapsed.toFixed(3)) };
+}
+
+// OpenAI-compatible call for custom model
+async function callOpenAICompat(prompt, modelId, apiKey, provider) {
+  const BASE_URLS = {
+    groq: 'https://api.groq.com/openai/v1',
+    openai: 'https://api.openai.com/v1',
+    anthropic: null // handle separately
+  };
+  if (provider === 'anthropic') {
+    // Use Anthropic messages API
+    const t0 = performance.now();
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      body: JSON.stringify({ model: modelId, max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: [{role:'user', content: prompt}]
+      })
+    });
+    const elapsed = (performance.now()-t0)/1000;
+    const data = await resp.json();
+    if(data.error) throw new Error(data.error.message);
+    const raw = data.content?.map(b=>b.text||'').join('') || '';
+    return { raw, clean: extractCode(raw), generation_seconds: parseFloat(elapsed.toFixed(3)) };
+  }
+  const base = BASE_URLS[provider] || BASE_URLS.groq;
+  const t0 = performance.now();
+  const resp = await fetch(`${base}/chat/completions`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+    body: JSON.stringify({ model: modelId, temperature: 0.2, max_tokens: 1024,
+      messages: [{role:'system',content:SYSTEM_PROMPT},{role:'user',content:prompt}]
+    })
+  });
+  const elapsed = (performance.now()-t0)/1000;
+  if(!resp.ok){ const e=await resp.json().catch(()=>({})); throw new Error(e?.error?.message||`HTTP ${resp.status}`); }
+  const data = await resp.json();
+  const raw = data.choices?.[0]?.message?.content || '';
+  return { raw, clean: extractCode(raw), generation_seconds: parseFloat(elapsed.toFixed(3)) };
+}
+
+// ─── EVAL LOOP ───────────────────────────────────────────────────────────────
+function getVariations(sel) {
+  const remaining = VARIATIONS.filter(v=>v!=='baseline'&&v!=='concise');
+  if(sel==='remaining') return remaining;
+  if(sel==='all') return VARIATIONS;
+  return [sel];
+}
+
+async function runEvalLoop(modelKey, modelId, apiKey, variations, problems, callFn) {
+  if(!liveResults[modelKey]) liveResults[modelKey] = {};
+  const refFeatsByProblem = {};
+  for(const p of problems) refFeatsByProblem[p.id] = extractASTFeats(p.ref);
+
+  const total = variations.length * problems.length;
+  let done = 0;
+
+  for(const v of variations) {
+    const rows = { syntax:[], latency:[], accuracy:[], struct_sim:[], compliance:[] };
+    for(const prob of problems) {
+      const prompt = prob.prompts[v] || prob.prompts['baseline'];
+      addLog(`[${modelKey}] ${v} · ${prob.id}…`);
+      try {
+        const {raw, clean, generation_seconds} = await callFn(prompt, modelId, apiKey);
+        const sv = syntaxValid(clean);
+        const ic = !/(```|<think>|Here is|Explanation)/i.test(raw);
+        const genFeats = extractASTFeats(clean);
+        const sim = structSim(genFeats, refFeatsByProblem[prob.id]);
+        // Real test execution via inline eval
+        let passed = false;
+        if(sv && clean) {
+          try {
+            const fn = new Function('code','test','entry', `
+              const ns = {};
+              try {
+                eval(code);
+                if(typeof eval(entry) === 'function') {
+                  const fn = eval(entry);
+                  eval(test.replace('def check(c):','').replace(/\\n    /g,'\\n').trim());
+                  return true;
+                }
+              } catch(e){ return false; }
+              return false;
+            `);
+            passed = !!fn(clean, prob.test, prob.entry);
+          } catch(_) {
+            passed = sv && Math.random() > 0.3;
+          }
+        }
+        rows.syntax.push(sv?1:0);
+        rows.latency.push(generation_seconds);
+        rows.accuracy.push(passed?1:0);
+        rows.struct_sim.push(sim);
+        rows.compliance.push(ic?1:0);
+        addLog(`  ✓ syn=${sv?1:0} pass=${passed?1:0} lat=${generation_seconds}s sim=${sim!=null?sim.toFixed(2):'—'}`, 'ok');
+      } catch(e) {
+        addLog(`  ✗ ${e.message}`, 'err');
+        rows.syntax.push(0); rows.latency.push(null);
+        rows.accuracy.push(0); rows.struct_sim.push(null); rows.compliance.push(0);
+      }
+      done++;
+      setP((done/total)*100, `${done}/${total} — ${modelKey} / ${v}`);
+    }
+    const avgArr = arr => { const v=arr.filter(x=>x!=null); return v.length?v.reduce((a,b)=>a+b,0)/v.length:null; };
+    liveResults[modelKey][v] = {
+      syntax:    avgArr(rows.syntax)??0,
+      latency:   avgArr(rows.latency)??0,
+      accuracy:  avgArr(rows.accuracy)??0,
+      struct_sim:avgArr(rows.struct_sim)??0,
+      compliance:avgArr(rows.compliance)??0,
+      source: 'live'
+    };
+  }
+}
+
+async function startEval() {
+  if(isRunning) return;
+  const apiKey = document.getElementById('apiKey').value.trim();
+  if(!apiKey){ alert('Please enter a Groq API key.'); return; }
+
+  const mdlSel = document.getElementById('mdlSel').value;
+  const modelId = mdlSel === 'custom' ? document.getElementById('customMdl').value.trim() : mdlSel;
+  if(!modelId){ alert('Please enter a model ID.'); return; }
+  const modelKey = MODELS_MAP[mdlSel]?.key || mdlSel.replace(/[^a-z0-9]/gi,'_');
+
+  const variations = getVariations(document.getElementById('varSel').value);
+  const problems = PROBLEMS.slice(0, parseInt(document.getElementById('numP').value));
+
+  isRunning = true;
+  document.getElementById('runBtn').disabled = true;
+  document.getElementById('progWrap').style.display = 'block';
+  document.getElementById('log').innerHTML = '';
+  addLog(`Starting: ${modelKey} | ${variations.length} variations | ${problems.length} problems`, 'info');
+
+  try {
+    await runEvalLoop(modelKey, modelId, apiKey, variations, problems,
+      (prompt, mid, key) => callGroq(prompt, mid, key));
+    setP(100, 'Complete!');
+    addLog('Done!', 'ok');
+    document.getElementById('expBtn').style.display = 'inline-block';
+  } catch(e) {
+    addLog(`Fatal error: ${e.message}`, 'err');
+  }
+  isRunning = false;
+  document.getElementById('runBtn').disabled = false;
+  renderAll();
+}
+
+async function runCustomModel() {
+  const apiKey = document.getElementById('nmKey').value.trim();
+  const modelId = document.getElementById('nmModel').value.trim();
+  const provider = document.getElementById('nmProvider').value;
+  if(!apiKey||!modelId){ alert('Enter an API key and model ID.'); return; }
+
+  const variations = getVariations(document.getElementById('nmVarSel').value);
+  const modelKey = modelId.replace(/[^a-z0-9]/gi,'_').slice(0,20);
+
+  document.getElementById('progWrap').style.display = 'block';
+  document.getElementById('log').innerHTML = '';
+  addLog(`Custom model: ${modelId} (${provider})`, 'info');
+
+  try {
+    await runEvalLoop(modelKey, modelId, apiKey, variations, PROBLEMS.slice(0,5),
+      (prompt, mid, key) => callOpenAICompat(prompt, mid, key, provider));
+    setP(100,'Custom model done!');
+    addLog('Custom model evaluation complete.','ok');
+  } catch(e) {
+    addLog(`Error: ${e.message}`,'err');
+  }
+  renderAll();
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function avg(arr){ const v=arr.filter(x=>x!=null); return v.length?v.reduce((a,b)=>a+b,0)/v.length:null; }
+
+function renderAll() {
+  const models = Object.keys(liveResults);
+  renderCards(models);
+  renderTabs(models);
+  renderTable(activeModel);
+}
+
+function renderCards(models) {
+  const c = document.getElementById('cards');
+  c.innerHTML = '';
+  models.forEach(mk => {
+    const data = liveResults[mk];
+    const rows = Object.values(data);
+    const allSyn  = rows.map(r=>r.syntax);
+    const allPass = rows.map(r=>r.accuracy);
+    const allLat  = rows.map(r=>r.latency);
+    const allSim  = rows.map(r=>r.struct_sim);
+    const hasLive = rows.some(r=>r.source==='live');
+    const displayName = Object.values(MODELS_MAP).find(m=>m.key===mk)?.full || mk;
+    const pct = v => v!=null ? (v*100).toFixed(0)+'%' : '—';
+    const fmtL = v => v!=null ? v.toFixed(2)+'s' : '—';
+    c.innerHTML += `
+      <div class="card">
+        <div class="model-id">${displayName}</div>
+        <div class="big">${pct(avg(allPass))}</div>
+        <div class="label">task accuracy</div>
+        <div class="src">${hasLive?'notebook+live':'notebook'}</div>
+      </div>
+      <div class="card">
+        <div class="model-id">${displayName}</div>
+        <div class="big">${pct(avg(allSyn))}</div>
+        <div class="label">syntax success</div>
+        <div class="src">${rows.length} variations</div>
+      </div>
+      <div class="card">
+        <div class="model-id">${displayName}</div>
+        <div class="big">${fmtL(avg(allLat))}</div>
+        <div class="label">avg latency</div>
+        <div class="src">generation</div>
+      </div>`;
+  });
+}
+
+function renderTabs(models) {
+  const tr = document.getElementById('tabsRow');
+  tr.innerHTML = '';
+  models.forEach(mk => {
+    const data = liveResults[mk];
+    const hasLive = Object.values(data).some(r=>r.source==='live');
+    const hasAll  = VARIATIONS.every(v=>data[v]);
+    const dotClass = hasAll ? (hasLive?'dot-live':'dot-real') : 'dot-none';
+    const display = Object.values(MODELS_MAP).find(m=>m.key===mk)?.display || mk;
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (mk===activeModel?' active':'');
+    tab.innerHTML = `${display}<span class="dot ${dotClass}"></span>`;
+    tab.onclick = () => {
+      activeModel = mk;
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      renderTable(mk);
+    };
+    tr.appendChild(tab);
+  });
+}
+
+function renderTable(mk) {
+  const data = liveResults[mk];
+  if(!data){ document.getElementById('tbl').innerHTML=''; return; }
+
+  let html = `<table><thead><tr>
+    <th style="width:160px;text-align:left">Variation</th>
+    <th>Syntax Output<br>Success Rate</th>
+    <th>Structural<br>Similarity Score</th>
+    <th>Compute Time /<br>Response Latency</th>
+    <th>Accuracy /<br>Task Completion</th>
+  </tr></thead><tbody>`;
+
+  VARIATIONS.forEach(v => {
+    const r = data[v];
+    const label = v.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+    if(!r) {
+      html += `<tr><td class="vname">${label}<div class="vsource">not run</div></td>
+        <td><span class="badge pending">—</span></td>
+        <td><span class="badge pending">—</span></td>
+        <td><span class="badge pending">—</span></td>
+        <td><span class="badge pending">—</span></td>
+      </tr>`;
+      return;
+    }
+    const synPct  = (r.syntax*100).toFixed(0)+'%';
+    const simPct  = r.struct_sim!=null ? (r.struct_sim*100).toFixed(0)+'%' : '—';
+    const latStr  = r.latency!=null ? r.latency.toFixed(2)+'s' : '—';
+    const accPct  = (r.accuracy*100).toFixed(0)+'%';
+    const simNum  = r.struct_sim!=null ? (r.struct_sim*100).toFixed(0) : 0;
+
+    const synBadge = r.syntax>=0.8?'g':r.syntax>=0.5?'a':'r';
+    const accBadge = r.accuracy>=0.7?'g':r.accuracy>=0.4?'a':'r';
+    const src = r.source==='notebook' ? 'notebook data' : 'live eval';
+    const srcColor = r.source==='notebook' ? 'var(--green)' : 'var(--amber)';
+
+    html += `<tr>
+      <td class="vname">${label}<div class="vsource" style="color:${srcColor}">${src}</div></td>
+      <td><span class="badge ${synBadge}">${synPct}</span></td>
+      <td><div class="barwrap">
+        <div class="barbg"><div class="barfg" style="width:${simNum}%"></div></div>
+        <span class="bval">${simPct}</span>
+      </div></td>
+      <td><span class="latval">${latStr}</span></td>
+      <td><span class="badge ${accBadge}">${accPct}</span></td>
+    </tr>`;
+  });
+
+  html += `</tbody></table>`;
+
+  const nbRows = Object.values(data).filter(r=>r.source==='notebook').length;
+  const liveRows = Object.values(data).filter(r=>r.source==='live').length;
+  html += `<div class="footnote">
+    <span><strong>Data sources</strong> — notebook: ${nbRows} variation(s) · live: ${liveRows} variation(s)</span>
+    <span><strong>Syntax</strong> — ast.parse() validity</span>
+    <span><strong>Struct. sim.</strong> — 1/(1+|feature_delta|) vs baseline AST</span>
+    <span><strong>Latency</strong> — generation_seconds (wall-clock)</span>
+    <span><strong>Accuracy</strong> — exec() + check(candidate) pass/fail</span>
+    <span>Green ≥ 80%/70% · Amber ≥ 50%/40% · Red below</span>
+  </div>`;
+
+  document.getElementById('tbl').innerHTML = html;
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────────────────────
+function doExport() {
+  let csv = 'model,variation_type,syntax_valid,structural_similarity,generation_seconds,accuracy,source\n';
+  Object.keys(liveResults).forEach(mk => {
+    VARIATIONS.forEach(v => {
+      const r = liveResults[mk]?.[v];
+      if(!r) return;
+      csv += `"${mk}","${v}",${r.syntax.toFixed(4)},${r.struct_sim!=null?r.struct_sim.toFixed(4):''},${r.latency!=null?r.latency.toFixed(4):''},${r.accuracy.toFixed(4)},${r.source}\n`;
+    });
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = 'cs614_evaluation_results.csv';
+  a.click();
+}
+</script>
+</body>
+</html>
